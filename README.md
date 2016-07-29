@@ -44,7 +44,7 @@ $watcher
          ->assertBodyJsonFile(dirname(__DIR__) . "/tests/Ws/Http/_json/freegeoip.net.json");
 ````
 
-#### 查看所有例子(See the full examples) https://github.com/toohamster/ws-http/master/tree/master/tests/Ws/Http/ATest.php.
+#### 查看所有例子(See the full examples) https://github.com/toohamster/ws-http/blob/master/tests/Ws/Http/ATest.php.
 
 Requirements
 ------------
