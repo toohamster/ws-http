@@ -2,24 +2,26 @@
 
 class Request
 {
-    private static $cookie = null;
-    private static $cookieFile = null;
-    private static $curlOpts = [];
-    private static $defaultHeaders = [];
-    private static $handle = null;
-    private static $jsonOpts = [];
-    private static $socketTimeout = null;
-    private static $verifyPeer = true;
-    private static $verifyHost = true;
-    private static $verifyFile = null;
+    private static $instances = [];
 
-    private static $auth = [
+    private $cookie = null;
+    private $cookieFile = null;
+    private $curlOpts = [];
+    private $defaultHeaders = [];
+    private $handle = null;
+    private $jsonOpts = [];
+    private $socketTimeout = null;
+    private $verifyPeer = true;
+    private $verifyHost = true;
+    private $verifyFile = null;
+
+    private $auth = [
         'user' => '',
         'pass' => '',
         'method' => CURLAUTH_BASIC
     ];
 
-    private static $proxy = [
+    private $proxy = [
         'port' => false,
         'tunnel' => false,
         'address' => false,
@@ -31,6 +33,30 @@ class Request
         ]
     ];
 
+    private function __construct()
+    {
+        $this->verifyFile = __DIR__ . '/_ssl/ca-bundle.crt';
+    }
+
+    /**
+     * Get a Object
+     *
+     * @param string $id object identification, default auto build
+     * @return \Ws\Http\Request
+     */
+    public static function create($id = null)
+    {
+        if ( empty($id) )
+        {
+            $id = md5(__METHOD__) . count(self::$instances); 
+        }
+        if ( empty(self::$instances[$id]) )
+        {
+            self::$instances[$id] = new self();  
+        }
+        return self::$instances[$id];
+    }
+
     /**
      * Set JSON decode mode
      *
@@ -39,9 +65,9 @@ class Request
      * @param integer $options Bitmask of JSON decode options. Currently only JSON_BIGINT_AS_STRING is supported (default is to cast large integers as floats)
      * @return array
      */
-    public static function jsonOpts($assoc = false, $depth = 512, $options = 0)
+    public function jsonOpts($assoc = false, $depth = 512, $options = 0)
     {
-        return self::$jsonOpts = [$assoc, $depth, $options];
+        return $this->jsonOpts = [$assoc, $depth, $options];
     }
 
     /**
@@ -50,9 +76,9 @@ class Request
      * @param bool $enabled enable SSL verification, by default is true
      * @return bool
      */
-    public static function verifyPeer($enabled)
+    public function verifyPeer($enabled)
     {
-        return self::$verifyPeer = $enabled;
+        return $this->verifyPeer = $enabled;
     }
 
     /**
@@ -61,9 +87,9 @@ class Request
      * @param bool $enabled enable SSL host verification, by default is true
      * @return bool
      */
-    public static function verifyHost($enabled)
+    public function verifyHost($enabled)
     {
-        return self::$verifyHost = $enabled;
+        return $this->verifyHost = $enabled;
     }
 
     /**
@@ -72,9 +98,9 @@ class Request
      * @param string $file SSL verification file
      * @return string
      */
-    public static function verifyFile($file)
+    public function verifyFile($file)
     {
-        return self::$verifyFile = $file;
+        return $this->verifyFile = $file;
     }
 
     /**
@@ -82,14 +108,9 @@ class Request
      * 
      * @return string
      */
-    private static function getVerifyFile()
+    public function getVerifyFile()
     {
-        $file = self::$verifyFile;
-        if ( !empty($file) && file_exists($file) && is_readable($file))
-        {
-            return $file;
-        }
-        return __DIR__ . '/_ssl/ca-bundle.crt';
+        return $this->verifyFile;
     }
 
     /**
@@ -98,9 +119,9 @@ class Request
      * @param integer $seconds timeout value in seconds
      * @return integer
      */
-    public static function timeout($seconds)
+    public function timeout($seconds)
     {
-        return self::$socketTimeout = $seconds;
+        return $this->socketTimeout = $seconds;
     }
 
     /**
@@ -109,9 +130,9 @@ class Request
      * @param array $headers headers array
      * @return array
      */
-    public static function defaultHeaders($headers)
+    public function defaultHeaders($headers)
     {
-        return self::$defaultHeaders = array_merge(self::$defaultHeaders, $headers);
+        return $this->defaultHeaders = array_merge($this->defaultHeaders, $headers);
     }
 
     /**
@@ -121,17 +142,17 @@ class Request
      * @param string $value header value
      * @return string
      */
-    public static function defaultHeader($name, $value)
+    public function defaultHeader($name, $value)
     {
-        return self::$defaultHeaders[$name] = $value;
+        return $this->defaultHeaders[$name] = $value;
     }
 
     /**
      * Clear all the default headers
      */
-    public static function clearDefaultHeaders()
+    public function clearDefaultHeaders()
     {
-        return self::$defaultHeaders = [];
+        return $this->defaultHeaders = [];
     }
 
     /**
@@ -140,9 +161,9 @@ class Request
      * @param array $options options array
      * @return array
      */
-    public static function curlOpts($options)
+    public function curlOpts($options)
     {
-        return self::mergeCurlOptions(self::$curlOpts, $options);
+        return $this->mergeCurlOptions($this->curlOpts, $options);
     }
 
     /**
@@ -152,17 +173,17 @@ class Request
      * @param string $value header value
      * @return string
      */
-    public static function curlOpt($name, $value)
+    public function curlOpt($name, $value)
     {
-        return self::$curlOpts[$name] = $value;
+        return $this->curlOpts[$name] = $value;
     }
 
     /**
      * Clear all the default headers
      */
-    public static function clearCurlOpts()
+    public function clearCurlOpts()
     {
-        return self::$curlOpts = [];
+        return $this->curlOpts = [];
     }
 
     /**
@@ -170,9 +191,9 @@ class Request
      *
      * @param string $cookie
      */
-    public static function cookie($cookie)
+    public function cookie($cookie)
     {
-        self::$cookie = $cookie;
+        $this->cookie = $cookie;
     }
 
     /**
@@ -182,9 +203,9 @@ class Request
      *
      * @param string $cookieFile - path to file for saving cookie
      */
-    public static function cookieFile($cookieFile)
+    public function cookieFile($cookieFile)
     {
-        self::$cookieFile = $cookieFile;
+        $this->cookieFile = $cookieFile;
     }
 
     /**
@@ -194,11 +215,11 @@ class Request
      * @param string $password authentication password
      * @param integer $method authentication method
      */
-    public static function auth($username = '', $password = '', $method = CURLAUTH_BASIC)
+    public function auth($username = '', $password = '', $method = CURLAUTH_BASIC)
     {
-        self::$auth['user'] = $username;
-        self::$auth['pass'] = $password;
-        self::$auth['method'] = $method;
+        $this->auth['user'] = $username;
+        $this->auth['pass'] = $password;
+        $this->auth['method'] = $method;
     }
 
     /**
@@ -209,12 +230,12 @@ class Request
      * @param integer $type (Available options for this are CURLPROXY_HTTP, CURLPROXY_HTTP_1_0 CURLPROXY_SOCKS4, CURLPROXY_SOCKS5, CURLPROXY_SOCKS4A and CURLPROXY_SOCKS5_HOSTNAME)
      * @param bool $tunnel enable/disable tunneling
      */
-    public static function proxy($address, $port = 1080, $type = CURLPROXY_HTTP, $tunnel = false)
+    public function proxy($address, $port = 1080, $type = CURLPROXY_HTTP, $tunnel = false)
     {
-        self::$proxy['type'] = $type;
-        self::$proxy['port'] = $port;
-        self::$proxy['tunnel'] = $tunnel;
-        self::$proxy['address'] = $address;
+        $this->proxy['type'] = $type;
+        $this->proxy['port'] = $port;
+        $this->proxy['tunnel'] = $tunnel;
+        $this->proxy['address'] = $address;
     }
 
     /**
@@ -224,11 +245,11 @@ class Request
      * @param string $password authentication password
      * @param integer $method authentication method
      */
-    public static function proxyAuth($username = '', $password = '', $method = CURLAUTH_BASIC)
+    public function proxyAuth($username = '', $password = '', $method = CURLAUTH_BASIC)
     {
-        self::$proxy['auth']['user'] = $username;
-        self::$proxy['auth']['pass'] = $password;
-        self::$proxy['auth']['method'] = $method;
+        $this->proxy['auth']['user'] = $username;
+        $this->proxy['auth']['pass'] = $password;
+        $this->proxy['auth']['method'] = $method;
     }
 
     /**
@@ -239,9 +260,9 @@ class Request
      * @param mixed $parameters parameters to send in the querystring
      * @return \Ws\Http\Response
      */
-    public static function get($url, $headers = [], $parameters = null)
+    public function get($url, $headers = [], $parameters = null)
     {
-        return self::send(Method::GET, $url, $parameters, $headers);
+        return $this->send(Method::GET, $url, $parameters, $headers);
     }
 
     /**
@@ -251,9 +272,9 @@ class Request
      * @param mixed $parameters parameters to send in the querystring
      * @return \Ws\Http\Response
      */
-    public static function head($url, $headers = [], $parameters = null)
+    public function head($url, $headers = [], $parameters = null)
     {
-        return self::send(Method::HEAD, $url, $parameters, $headers);
+        return $this->send(Method::HEAD, $url, $parameters, $headers);
     }
 
     /**
@@ -263,9 +284,9 @@ class Request
      * @param mixed $parameters parameters to send in the querystring
      * @return \Ws\Http\Response
      */
-    public static function options($url, $headers = [], $parameters = null)
+    public function options($url, $headers = [], $parameters = null)
     {
-        return self::send(Method::OPTIONS, $url, $parameters, $headers, $username, $password);
+        return $this->send(Method::OPTIONS, $url, $parameters, $headers);
     }
 
     /**
@@ -275,9 +296,9 @@ class Request
      * @param mixed $parameters parameters to send in the querystring
      * @return \Ws\Http\Response
      */
-    public static function connect($url, $headers = [], $parameters = null)
+    public function connect($url, $headers = [], $parameters = null)
     {
-        return self::send(Method::CONNECT, $url, $parameters, $headers);
+        return $this->send(Method::CONNECT, $url, $parameters, $headers);
     }
 
     /**
@@ -287,9 +308,9 @@ class Request
      * @param mixed $body POST body data
      * @return \Ws\Http\Response
      */
-    public static function post($url, $headers = [], $body = null)
+    public function post($url, $headers = [], $body = null)
     {
-        return self::send(Method::POST, $url, $body, $headers);
+        return $this->send(Method::POST, $url, $body, $headers);
     }
 
     /**
@@ -299,9 +320,9 @@ class Request
      * @param mixed $body DELETE body data
      * @return \Ws\Http\Response
      */
-    public static function delete($url, $headers = [], $body = null)
+    public function delete($url, $headers = [], $body = null)
     {
-        return self::send(Method::DELETE, $url, $body, $headers);
+        return $this->send(Method::DELETE, $url, $body, $headers);
     }
 
     /**
@@ -311,9 +332,9 @@ class Request
      * @param mixed $body PUT body data
      * @return \Ws\Http\Response
      */
-    public static function put($url, $headers = [], $body = null)
+    public function put($url, $headers = [], $body = null)
     {
-        return self::send(Method::PUT, $url, $body, $headers);
+        return $this->send(Method::PUT, $url, $body, $headers);
     }
 
     /**
@@ -323,9 +344,9 @@ class Request
      * @param mixed $body PATCH body data
      * @return \Ws\Http\Response
      */
-    public static function patch($url, $headers = [], $body = null)
+    public function patch($url, $headers = [], $body = null)
     {
-        return self::send(Method::PATCH, $url, $body, $headers);
+        return $this->send(Method::PATCH, $url, $body, $headers);
     }
 
     /**
@@ -335,9 +356,9 @@ class Request
      * @param mixed $body TRACE body data
      * @return \Ws\Http\Response
      */
-    public static function trace($url, $headers = [], $body = null)
+    public function trace($url, $headers = [], $body = null)
     {
-        return self::send(Method::TRACE, $url, $body, $headers);
+        return $this->send(Method::TRACE, $url, $body, $headers);
     }
 
     /**
@@ -393,18 +414,18 @@ class Request
      * @throws \Ws\Http\Exception if a cURL error occurs
      * @return \Ws\Http\Response
      */
-    public static function send($method, $url, $body = null, $headers = [])
+    public function send($method, $url, $body = null, $headers = [])
     {
-        self::$handle = curl_init();
+        $this->handle = curl_init();
 
         if ($method !== Method::GET) {
 			if ($method === Method::POST) {
-				curl_setopt(self::$handle, CURLOPT_POST, true);
+				curl_setopt($this->handle, CURLOPT_POST, true);
 			} else {
-				curl_setopt(self::$handle, CURLOPT_CUSTOMREQUEST, $method);
+				curl_setopt($this->handle, CURLOPT_CUSTOMREQUEST, $method);
 			}
 
-            curl_setopt(self::$handle, CURLOPT_POSTFIELDS, $body);
+            curl_setopt($this->handle, CURLOPT_POSTFIELDS, $body);
         } elseif (is_array($body)) {
             if (strpos($url, '?') !== false) {
                 $url .= '&';
@@ -420,56 +441,58 @@ class Request
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS => 10,
-            CURLOPT_HTTPHEADER => self::getFormattedHeaders($headers),
+            CURLOPT_HTTPHEADER => $this->getFormattedHeaders($headers),
             CURLOPT_HEADER => true,
-            CURLOPT_SSL_VERIFYPEER => self::$verifyPeer,
+            CURLOPT_SSL_VERIFYPEER => $this->verifyPeer,
             //CURLOPT_SSL_VERIFYHOST accepts only 0 (false) or 2 (true). Future versions of libcurl will treat values 1 and 2 as equals
-            CURLOPT_SSL_VERIFYHOST => self::$verifyHost === false ? 0 : 2,
+            CURLOPT_SSL_VERIFYHOST => $this->verifyHost === false ? 0 : 2,
             // If an empty string, '', is set, a header containing all supported encoding types is sent
             CURLOPT_ENCODING => ''
         ];
 
-        if ( self::$verifyPeer )
+        if ( $this->verifyPeer )
         {
-            $curl_base_options[CURLOPT_CAINFO] = self::getVerifyFile();
+            $curl_base_options[CURLOPT_CAINFO] = $this->getVerifyFile();
         }
 
-        curl_setopt_array(self::$handle, self::mergeCurlOptions($curl_base_options, self::$curlOpts));
+        curl_setopt_array($this->handle, $this->mergeCurlOptions($curl_base_options, $this->curlOpts));
 
-        if (self::$socketTimeout !== null) {
-            curl_setopt(self::$handle, CURLOPT_TIMEOUT, self::$socketTimeout);
+        if ($this->socketTimeout !== null) {
+            curl_setopt($this->handle, CURLOPT_TIMEOUT, $this->socketTimeout);
         }
 
-        if (self::$cookie) {
-            curl_setopt(self::$handle, CURLOPT_COOKIE, self::$cookie);
+        if ($this->cookie) {
+            curl_setopt($this->handle, CURLOPT_COOKIE, $this->cookie);
         }
 
-        if (self::$cookieFile) {
-            curl_setopt(self::$handle, CURLOPT_COOKIEFILE, self::$cookieFile);
-            curl_setopt(self::$handle, CURLOPT_COOKIEJAR, self::$cookieFile);
+        if ($this->cookieFile) {
+            curl_setopt($this->handle, CURLOPT_COOKIEFILE, $this->cookieFile);
+            curl_setopt($this->handle, CURLOPT_COOKIEJAR, $this->cookieFile);
         }
 
-        if (!empty(self::$auth['user'])) {
-            curl_setopt_array(self::$handle, [
-                CURLOPT_HTTPAUTH    => self::$auth['method'],
-                CURLOPT_USERPWD     => self::$auth['user'] . ':' . self::$auth['pass']
+        if (!empty($this->auth['user'])) {
+            curl_setopt_array($this->handle, [
+                CURLOPT_HTTPAUTH    => $this->auth['method'],
+                CURLOPT_USERPWD     => $this->auth['user'] . ':' . $this->auth['pass']
             ]);
         }
 
-        if (self::$proxy['address'] !== false) {
-            curl_setopt_array(self::$handle, [
-                CURLOPT_PROXYTYPE       => self::$proxy['type'],
-                CURLOPT_PROXY           => self::$proxy['address'],
-                CURLOPT_PROXYPORT       => self::$proxy['port'],
-                CURLOPT_HTTPPROXYTUNNEL => self::$proxy['tunnel'],
-                CURLOPT_PROXYAUTH       => self::$proxy['auth']['method'],
-                CURLOPT_PROXYUSERPWD    => self::$proxy['auth']['user'] . ':' . self::$proxy['auth']['pass']
+        if ($this->proxy['address'] !== false) {
+            curl_setopt_array($this->handle, [
+                CURLOPT_PROXYTYPE       => $this->proxy['type'],
+                CURLOPT_PROXY           => $this->proxy['address'],
+                CURLOPT_PROXYPORT       => $this->proxy['port'],
+                CURLOPT_HTTPPROXYTUNNEL => $this->proxy['tunnel'],
+                CURLOPT_PROXYAUTH       => $this->proxy['auth']['method'],
+                CURLOPT_PROXYUSERPWD    => $this->proxy['auth']['user'] . ':' . $this->proxy['auth']['pass']
             ]);
         }
 
-        $response   = curl_exec(self::$handle);
-        $error      = curl_error(self::$handle);
-        $info       = self::getInfo();
+        $response   = curl_exec($this->handle);
+        $error      = curl_error($this->handle);
+        $info       = curl_getinfo($this->handle);
+
+        curl_close($this->handle);
 
         if ($error) {
             throw new Exception($error);
@@ -480,37 +503,21 @@ class Request
         $header      = substr($response, 0, $header_size);
         $body        = substr($response, $header_size);
 
-        return new Response($info, $body, $header, self::$jsonOpts);
+        return new Response($info, $body, $header, $this->jsonOpts);
     }
 
-    public static function getInfo($opt = false)
-    {
-        if ($opt) {
-            $info = curl_getinfo(self::$handle, $opt);
-        } else {
-            $info = curl_getinfo(self::$handle);
-        }
-
-        return $info;
-    }
-
-    public static function getCurlHandle()
-    {
-        return self::$handle;
-    }
-
-    public static function getFormattedHeaders($headers)
+    public function getFormattedHeaders($headers)
     {
         $formattedHeaders = [];
 
-        $combinedHeaders = array_change_key_case(array_merge(self::$defaultHeaders, (array) $headers));
+        $combinedHeaders = array_change_key_case(array_merge($this->defaultHeaders, (array) $headers));
 
         foreach ($combinedHeaders as $key => $val) {
-            $formattedHeaders[] = self::getHeaderString($key, $val);
+            $formattedHeaders[] = $this->getHeaderString($key, $val);
         }
 
         if (!array_key_exists('user-agent', $combinedHeaders)) {
-            $formattedHeaders[] = 'user-agent: unirest-php/2.0';
+            $formattedHeaders[] = 'user-agent: ws-http/1.0';
         }
 
         if (!array_key_exists('expect', $combinedHeaders)) {
