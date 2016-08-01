@@ -11,6 +11,7 @@ class Request
     private $handle = null;
     private $jsonOpts = [];
     private $socketTimeout = null;
+    private $socketTimeoutMs = null;
     private $verifyPeer = true;
     private $verifyHost = true;
     private $verifyFile = null;
@@ -122,6 +123,17 @@ class Request
     public function timeout($seconds)
     {
         return $this->socketTimeout = $seconds;
+    }
+
+    /**
+     * Set a timeout ms
+     *
+     * @param integer $ms timeout value in seconds
+     * @return integer
+     */
+    public function timeoutMs($ms)
+    {
+        return $this->socketTimeoutMs = $ms;
     }
 
     /**
@@ -459,6 +471,14 @@ class Request
 
         if ($this->socketTimeout !== null) {
             curl_setopt($this->handle, CURLOPT_TIMEOUT, $this->socketTimeout);
+        }
+        else if ($this->socketTimeoutMs !== null) {
+            if ( $this->socketTimeoutMs < 1000 )
+            {
+                // issue: http://www.laruence.com/2014/01/21/2939.html
+                curl_setopt($this->handle, CURLOPT_NOSIGNAL, 1);
+            }            
+            curl_setopt($this->handle, CURLOPT_TIMEOUT, $this->socketTimeoutMs);
         }
 
         if ($this->cookie) {
