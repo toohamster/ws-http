@@ -8,7 +8,6 @@ class Request
     private $cookieFile = null;
     private $curlOpts = [];
     private $defaultHeaders = [];
-    private $handle = null;
     private $jsonOpts = [];
     private $socketTimeout = null;
     private $socketTimeoutMs = null;
@@ -428,16 +427,16 @@ class Request
      */
     public function send($method, $url, $body = null, $headers = [])
     {
-        $this->handle = curl_init();
+        $handle = curl_init();
 
         if ($method !== Method::GET) {
 			if ($method === Method::POST) {
-				curl_setopt($this->handle, CURLOPT_POST, true);
+				curl_setopt($handle, CURLOPT_POST, true);
 			} else {
-				curl_setopt($this->handle, CURLOPT_CUSTOMREQUEST, $method);
+				curl_setopt($handle, CURLOPT_CUSTOMREQUEST, $method);
 			}
 
-            curl_setopt($this->handle, CURLOPT_POSTFIELDS, $body);
+            curl_setopt($handle, CURLOPT_POSTFIELDS, $body);
         } elseif (is_array($body)) {
             if (strpos($url, '?') !== false) {
                 $url .= '&';
@@ -467,38 +466,38 @@ class Request
             $curl_base_options[CURLOPT_CAINFO] = $this->getVerifyFile();
         }
 
-        curl_setopt_array($this->handle, $this->mergeCurlOptions($curl_base_options, $this->curlOpts));
+        curl_setopt_array($handle, $this->mergeCurlOptions($curl_base_options, $this->curlOpts));
 
         if ($this->socketTimeout !== null) {
-            curl_setopt($this->handle, CURLOPT_TIMEOUT, $this->socketTimeout);
+            curl_setopt($handle, CURLOPT_TIMEOUT, $this->socketTimeout);
         }
         else if ($this->socketTimeoutMs !== null) {
             if ( $this->socketTimeoutMs < 1000 )
             {
                 // issue: http://www.laruence.com/2014/01/21/2939.html
-                curl_setopt($this->handle, CURLOPT_NOSIGNAL, 1);
+                curl_setopt($handle, CURLOPT_NOSIGNAL, 1);
             }            
-            curl_setopt($this->handle, CURLOPT_TIMEOUT, $this->socketTimeoutMs);
+            curl_setopt($handle, CURLOPT_TIMEOUT, $this->socketTimeoutMs);
         }
 
         if ($this->cookie) {
-            curl_setopt($this->handle, CURLOPT_COOKIE, $this->cookie);
+            curl_setopt($handle, CURLOPT_COOKIE, $this->cookie);
         }
 
         if ($this->cookieFile) {
-            curl_setopt($this->handle, CURLOPT_COOKIEFILE, $this->cookieFile);
-            curl_setopt($this->handle, CURLOPT_COOKIEJAR, $this->cookieFile);
+            curl_setopt($handle, CURLOPT_COOKIEFILE, $this->cookieFile);
+            curl_setopt($handle, CURLOPT_COOKIEJAR, $this->cookieFile);
         }
 
         if (!empty($this->auth['user'])) {
-            curl_setopt_array($this->handle, [
+            curl_setopt_array($handle, [
                 CURLOPT_HTTPAUTH    => $this->auth['method'],
                 CURLOPT_USERPWD     => $this->auth['user'] . ':' . $this->auth['pass']
             ]);
         }
 
         if ($this->proxy['address'] !== false) {
-            curl_setopt_array($this->handle, [
+            curl_setopt_array($handle, [
                 CURLOPT_PROXYTYPE       => $this->proxy['type'],
                 CURLOPT_PROXY           => $this->proxy['address'],
                 CURLOPT_PROXYPORT       => $this->proxy['port'],
@@ -508,11 +507,11 @@ class Request
             ]);
         }
 
-        $response   = curl_exec($this->handle);
-        $error      = curl_error($this->handle);
-        $info       = curl_getinfo($this->handle);
+        $response   = curl_exec($handle);
+        $error      = curl_error($handle);
+        $info       = curl_getinfo($handle);
 
-        curl_close($this->handle);
+        curl_close($handle);
 
         if ($error) {
             throw new Exception($error);
