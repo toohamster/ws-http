@@ -3,7 +3,7 @@
     "description": "ws-http: Simplified, lightweight HTTP client library",
     "keywords": ["http", "ws-http"],
     "license": "MIT",
-    "homepage": "http://ws.duixueren.net",
+    "homepage": "https://github.com/toohamster/ws-http",
     "support": {
         "issues": "https://github.com/toohamster/ws-http/issues",
         "source": "https://github.com/toohamster/ws-http"
