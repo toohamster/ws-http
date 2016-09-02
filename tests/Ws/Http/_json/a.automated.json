@@ -1,0 +1,319 @@
+{
+    "id": "EtSAqRw4Sx5YFD3CYyq",
+    "name": "夜点娱乐",
+    "type": 1,
+    "body": {
+        "vars": [
+            {
+                "name": "token",
+                "value": "1"
+            },
+            {
+                "name": "openid",
+                "value": ""
+            },
+            {
+                "name": "userid",
+                "value": "0"
+            },
+            {
+                "name": "city",
+                "value": "440100"
+            },
+            {
+                "name": "searchKtvName",
+                "value": "金柜"
+            },
+            {
+                "name": "bookingKtvId",
+                "value": ""
+            },
+            {
+                "name": "bookingRoomtype",
+                "value": ""
+            },
+            {
+                "name": "bookingStart",
+                "value": ""
+            },
+            {
+                "name": "bookingEnd",
+                "value": ""
+            },
+            {
+                "name": "bookingDay",
+                "value": ""
+            },
+            {
+                "name": "loginCookie",
+                "value": ""
+            }
+        ],
+        "requests": [
+            {
+                "id": "1471348763956",
+                "type": 1,
+                "name": "微信用户登录token获取",
+                "url": "http://letsktv.chinacloudapp.cn/user/oauthlogin",
+                "protocol": "http",
+                "method": "POST",
+                "header": {
+                    "X-KTV-Vendor-Name": "1d55af1659424cf94d869e2580a11bf8",
+                    "X-KTV-Application-Platform": "1",
+                    "X-KTV-Application-Name": "eec607d1f47c18c9160634fd0954da1a"
+                },
+                "authorization": {},
+                "dataMode": "raw-json",
+                "data": {
+                    "value": "{\"type\":\"wechat\",\"openid\":\"dddddddokwyOwsZZhu7_3zIQNtfB9r3CKhE\",\"display_name\":\"\\u7275\\u732a\\u7684\\u4ed3\\u9f20\",\"avatar_url\":\"http://wx.qlogo.cn/mmopen/JQpUg1oh5aelkvzXvcicURj0n4WzKJqBPr4RPjG6L9wyrKhGGKV1iaB4NJLod8Jn5y8ZCTCqIPED6l3av2iaEX3C88s1TaRLsA6/0\"}"
+                },
+                "postProcessors": [
+                    {
+                        "type": "setVar",
+                        "setVar": [
+                            {
+                                "match": "json",
+                                "attr": "token",
+                                "var": "token"
+                            },
+                            {
+                                "match": "header",
+                                "attr": "Set-Cookie",
+                                "var": "loginCookie"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "asserts",
+                        "asserts": []
+                    }
+                ]
+            },
+            {
+                "id": "1471348763962",
+                "type": 1,
+                "name": "根据token获取用户信息",
+                "url": "http://letsktv.chinacloudapp.cn/user/info",
+                "protocol": "http",
+                "method": "GET",
+                "header": {
+                    "X-KTV-Vendor-Name": "1d55af1659424cf94d869e2580a11bf8",
+                    "X-KTV-Application-Platform": "1",
+                    "X-KTV-Application-Name": "eec607d1f47c18c9160634fd0954da1a",
+                    "X-KTV-User-Token": "$token"
+                },
+                "authorization": {},
+                "dataMode": "params",
+                "data": [],
+                "postProcessors": [
+                    {
+                        "type": "setVar",
+                        "setVar": [
+                            {
+                                "match": "json",
+                                "attr": "openid",
+                                "var": "openid"
+                            },
+                            {
+                                "match": "json",
+                                "attr": "userid",
+                                "var": "userid"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "asserts",
+                        "asserts": [
+                            {
+                                "match": "status",
+                                "attr": "",
+                                "method": "eq",
+                                "expect": "200"
+                            },
+                            {
+                                "match": "json",
+                                "attr": "result",
+                                "method": "eq",
+                                "expect": "0"
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "1471354174497",
+                "type": 1,
+                "name": "按名称搜索KTV",
+                "url": "http://letsktv.chinacloudapp.cn/booking/xktvsearchlist",
+                "protocol": "http",
+                "method": "GET",
+                "header": {
+                    "X-KTV-Vendor-Name": "1d55af1659424cf94d869e2580a11bf8",
+                    "X-KTV-Application-Platform": "1",
+                    "X-KTV-Application-Name": "eec607d1f47c18c9160634fd0954da1a",
+                    "X-KTV-User-Token": "$token"
+                },
+                "authorization": {},
+                "dataMode": "params",
+                "data": [
+                    {"key": "offset", "value": "0", "type": "text"},
+                    {"key": "city", "value": "${city}", "type": "text"},
+                    {"key": "limit", "value": "27", "type": "text"},
+                    {"key": "name", "value": "${searchKtvName}", "type": "text"}
+                ],
+                "postProcessors": [
+                    {
+                        "type": "setVar",
+                        "setVar": [
+                            {
+                                "match": "json",
+                                "attr": "list[0].xktvid",
+                                "var": "bookingKtvId"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "asserts",
+                        "asserts": [
+                            {
+                                "match": "status",
+                                "attr": "",
+                                "method": "eq",
+                                "expect": "200"
+                            },
+                            {
+                                "match": "json",
+                                "attr": "result",
+                                "method": "eq",
+                                "expect": "0"
+                            },
+                            {
+                                "match": "json",
+                                "attr": "total",
+                                "method": "gt",
+                                "expect": "0"
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "1471356911011",
+                "type": 1,
+                "name": "选择具体门店",
+                "url": "http://letsktv.chinacloudapp.cn/booking/xktv",
+                "protocol": "http",
+                "method": "GET",
+                "header": {
+                    "X-KTV-Vendor-Name": "1d55af1659424cf94d869e2580a11bf8",
+                    "X-KTV-Application-Platform": "1",
+                    "X-KTV-Application-Name": "eec607d1f47c18c9160634fd0954da1a",
+                    "X-KTV-User-Token": "${token}"
+                },
+                "authorization": {},
+                "dataMode": "params",
+                "data": [
+                    {"key": "xktvid", "value": "${bookingKtvId}", "type": "text"}
+                ],
+                "postProcessors": [
+                    {
+                        "type": "setVar",
+                        "setVar": [
+                            {
+                                "match": "json",
+                                "attr": "data.taocaninfo.roomtype[0].id",
+                                "var": "bookingRoomtype"
+                            },
+                            {
+                                "match": "json",
+                                "attr": "data.taocaninfo.course[0].starttime.time",
+                                "var": "bookingStart"
+                            },
+                            {
+                                "match": "json",
+                                "attr": "data.taocaninfo.course[0].endtime.time",
+                                "var": "bookingEnd"
+                            },
+                            {
+                                "match": "json",
+                                "attr": "data.taocaninfo.days[0]",
+                                "var": "bookingDay"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "asserts",
+                        "asserts": [
+                            {
+                                "match": "status",
+                                "attr": "",
+                                "method": "eq",
+                                "expect": "200"
+                            },
+                            {
+                                "match": "json",
+                                "attr": "result",
+                                "method": "eq",
+                                "expect": "0"
+                            },
+                            {
+                                "match": "json",
+                                "attr": "data",
+                                "method": "not_null",
+                                "expect": ""
+                            },
+                            {
+                                "match": "json",
+                                "attr": "data.xktvid",
+                                "method": "eq",
+                                "expect": "bookingKtvId"
+                            },
+                            {
+                                "match": "json",
+                                "attr": "data.taocaninfo",
+                                "method": "not_null",
+                                "expect": ""
+                            },
+                            {
+                                "match": "json",
+                                "attr": "data.taocaninfo.roomtype",
+                                "method": "not_null",
+                                "expect": ""
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "1471358836839",
+                "type": 1,
+                "name": "提交订单",
+                "url": "http://letsktv.chinacloudapp.cn/booking/submitorder_new",
+                "protocol": "http",
+                "method": "POST",
+                "header": {
+                    "X-KTV-Vendor-Name": "1d55af1659424cf94d869e2580a11bf8",
+                    "X-KTV-Application-Platform": "1",
+                    "X-KTV-Application-Name": "eec607d1f47c18c9160634fd0954da1a",
+                    "cookie": "$loginCookie",
+                    "X-KTV-User-Token": "${token}"
+                },
+                "authorization": {},
+                "dataMode": "raw-json",
+                "data": {
+                    "value": "{\"ktvid\":\"${bookingKtvId}\",\"roomtype\":\"${bookingRoomtype}\",\"starttime\":\"${bookingDay} ${bookingStart}:00\",\"endtime\":\"${bookingDay} ${bookingEnd}:00\",\"couponid\":0,\"taocantype\":1,\"taocanid\":\"\",\"onlinepay\":0}"
+                },
+                "processors": [
+                    {
+                        "type": "setVar",
+                        "setVar": []
+                    },
+                    {
+                        "type": "asserts",
+                        "asserts": []
+                    }
+                ]
+            }
+        ]
+    }
+}

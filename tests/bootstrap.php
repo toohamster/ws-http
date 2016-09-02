@@ -41,7 +41,8 @@ interface ITest
 }
 
 $tests = [
-	'Ws.Http.ATest',
+	// 'Ws.Http.ATest',
+	'Ws.Http.Automated',
 ];
 
 foreach ($tests as $test)

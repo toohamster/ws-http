@@ -1,6 +1,7 @@
 <?php namespace Ws\Http\Automated\Task;
 
 use Ws\Http\Automated\Exception as Exception;
+use Ws\Http\Method;
 
 /**
  * 任务内的请求
@@ -47,19 +48,107 @@ class Request
 				$obj->name = $params['name'];
 				$obj->url = $params['url'];
 				$obj->protocol = $params['protocol'];
-				$obj->method = $params['method'];
+				$obj->method = strtoupper(trim($params['method']));				
 
+				$obj->setAuthorization($params['authorization']);
+				$obj->setProxy($params['proxy']);
+
+				// 设置默认请求头
+				$obj->headers['Content-Type'] = 'text/plain';
+
+				// 处理请求数据
+				switch ($obj->method)
+				{
+					// 这两种类型无需对参数做处理
+					case Method::GET:
+					case Method::HEAD:
+						foreach( (array) $params['data'] as $item )
+						{
+							if ( 'text' == $item['type'] )
+							{
+								$obj->data[ $item['key'] ] = $item['value'];
+							}
+							else
+							{
+								// 暂未实现
+							}
+						}
+						break;
+
+					// 只有 PUT,POST,DELETE,OPTIONS,PATCH 支持内容体
+					case Method::POST:
+					case Method::PUT:
+					case Method::DELETE:
+					case Method::OPTIONS:
+						$dataMode = strtolower( trim($params['dataMode']) );
+						switch ($dataMode) {
+							case 'params':
+								foreach( (array) $params['data'] as $item )
+								{
+									if ( 'text' == $item['type'] )
+									{
+										$obj->data[ $item['key'] ] = $item['value'];
+									}
+									else if ( 'file' == $item['type'] )
+									{
+										$obj->headers['Content-Type'] = 'multipart/form-data';
+										// file 内容暂不支持
+									}
+								}
+								break;
+							case 'urlencoded':
+								$obj->headers['Content-Type'] = 'application/x-www-form-urlencoded';
+								foreach( (array) $params['data'] as $item )
+								{
+									if ( 'text' == $item['type'] )
+									{
+										$obj->data[ $item['key'] ] = $item['value'];
+									}
+								}
+								break;
+
+							case 'raw-json':
+								$obj->headers['Content-Type'] = 'application/json';
+								$obj->data = $params['data']['value'];
+								break;
+							case 'raw-xml':
+								$obj->headers['Content-Type'] = 'application/xml';
+								$obj->data = $params['data']['value'];
+								break;
+							case 'raw-textxml':
+								$obj->headers['Content-Type'] = 'text/xml';
+								$obj->data = $params['data']['value'];
+								break;
+							case 'raw-html':
+								$obj->headers['Content-Type'] = 'text/html';
+								$obj->data = $params['data']['value'];
+								break;							
+							case 'raw-text':
+								$obj->headers['Content-Type'] = 'text/plain';
+								$obj->data = $params['data']['value'];
+								break;
+							case 'raw-binary':
+							default:
+								throw new Exception("Not supported request `dataMode`: {$dataMode}");
+								break;
+						}
+
+						break;
+					default:
+						throw new Exception("Not supported request `method`: {$obj->method}");
+						break;
+				}
+
+				// 设置请求头
 				foreach( (array) $params['headers'] as $key => $val )
 				{
 					$obj->headers[$key] = $val;
 				}
 
-				$obj->setAuthorization($params['authorization']);
-				$obj->setProxy($params['proxy']);
+				// 设置断言规则
+				
+				// 设置变量提取规则
 
-				// 处理请求
-				
-				
 				break;
 			case 2:
 				$obj->delay = (int) $params['delay'];
