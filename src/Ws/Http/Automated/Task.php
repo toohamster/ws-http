@@ -50,7 +50,7 @@ class Task
 		$obj = new Task();
 		$obj->id = $params['id'];
 		$obj->name = $params['name'];
-		$obj->type = (int) $params['id'];
+		$obj->type = (int) $params['type'];
 		$obj->body = TaskBody::parse($params['body']);
 
 		return $obj;

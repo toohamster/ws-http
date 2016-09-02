@@ -4,7 +4,7 @@
 (
     [id:Ws\Http\Automated\Task:private] => EtSAqRw4Sx5YFD3CYyq
     [name:Ws\Http\Automated\Task:private] => Ò¹µãÓéÀÖ
-    [type:Ws\Http\Automated\Task:private] => 0
+    [type:Ws\Http\Automated\Task:private] => 1
     [body:Ws\Http\Automated\Task:private] => Ws\Http\Automated\Task\Body Object
         (
             [vars:Ws\Http\Automated\Task\Body:private] => Array
