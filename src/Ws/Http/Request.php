@@ -476,8 +476,8 @@ class Request
             {
                 // issue: http://www.laruence.com/2014/01/21/2939.html
                 curl_setopt($handle, CURLOPT_NOSIGNAL, 1);
-            }            
-            curl_setopt($handle, CURLOPT_TIMEOUT, $this->socketTimeoutMs);
+            }
+            curl_setopt($handle, CURLOPT_TIMEOUT_MS, $this->socketTimeoutMs);
         }
 
         if ($this->cookie) {

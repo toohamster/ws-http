@@ -57,6 +57,7 @@
                 "url": "http://letsktv.chinacloudapp.cn/user/oauthlogin",
                 "protocol": "http",
                 "method": "POST",
+                "timeout": "5s",
                 "header": {
                     "X-KTV-Vendor-Name": "1d55af1659424cf94d869e2580a11bf8",
                     "X-KTV-Application-Platform": "1",
