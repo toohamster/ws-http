@@ -54,10 +54,10 @@
                 "id": "1471348763956",
                 "type": 1,
                 "name": "微信用户登录token获取",
-                "url": "http://letsktv.chinacloudapp.cn/user/oauthlogin",
-                "protocol": "http",
+                "url": "http://production-yedian.chinacloudapp.cn/user/oauthlogin",
+                
                 "method": "POST",
-                "timeout": "5s",
+                "timeout": "15 s",
                 "header": {
                     "X-KTV-Vendor-Name": "1d55af1659424cf94d869e2580a11bf8",
                     "X-KTV-Application-Platform": "1",
@@ -94,9 +94,10 @@
                 "id": "1471348763962",
                 "type": 1,
                 "name": "根据token获取用户信息",
-                "url": "http://letsktv.chinacloudapp.cn/user/info",
-                "protocol": "http",
+                "url": "http://production-yedian.chinacloudapp.cn/user/info",
+                
                 "method": "GET",
+                "timeout": "15s",
                 "header": {
                     "X-KTV-Vendor-Name": "1d55af1659424cf94d869e2580a11bf8",
                     "X-KTV-Application-Platform": "1",
@@ -145,9 +146,10 @@
                 "id": "1471354174497",
                 "type": 1,
                 "name": "按名称搜索KTV",
-                "url": "http://letsktv.chinacloudapp.cn/booking/xktvsearchlist",
-                "protocol": "http",
+                "url": "http://production-yedian.chinacloudapp.cn/booking/xktvsearchlist",
+                
                 "method": "GET",
+                "timeout": "15s",
                 "header": {
                     "X-KTV-Vendor-Name": "1d55af1659424cf94d869e2580a11bf8",
                     "X-KTV-Application-Platform": "1",
@@ -202,9 +204,10 @@
                 "id": "1471356911011",
                 "type": 1,
                 "name": "选择具体门店",
-                "url": "http://letsktv.chinacloudapp.cn/booking/xktv",
-                "protocol": "http",
+                "url": "http://production-yedian.chinacloudapp.cn/booking/xktv",
+                
                 "method": "GET",
+                "timeout": "15s",
                 "header": {
                     "X-KTV-Vendor-Name": "1d55af1659424cf94d869e2580a11bf8",
                     "X-KTV-Application-Platform": "1",
@@ -289,9 +292,10 @@
                 "id": "1471358836839",
                 "type": 1,
                 "name": "提交订单",
-                "url": "http://letsktv.chinacloudapp.cn/booking/submitorder_new",
-                "protocol": "http",
+                "url": "http://production-yedian.chinacloudapp.cn/booking/submitorder_new",
+                
                 "method": "POST",
+                "timeout": "15s",
                 "header": {
                     "X-KTV-Vendor-Name": "1d55af1659424cf94d869e2580a11bf8",
                     "X-KTV-Application-Platform": "1",

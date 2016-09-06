@@ -127,7 +127,7 @@ class Request
     /**
      * Set a timeout ms
      *
-     * @param integer $ms timeout value in seconds
+     * @param integer $ms timeout value in millisecond
      * @return integer
      */
     public function timeoutMs($ms)

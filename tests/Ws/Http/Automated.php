@@ -1,6 +1,7 @@
 <?php
 
 use Ws\Http\Automated\Task;
+use Ws\Http\Automated\Bootstrap;
 
 class Automated implements ITest
 {
@@ -17,9 +18,10 @@ class Automated implements ITest
 
 		$json = file_get_contents($file);
 
-		$task = Task::parse($json);
+		$task = Task::parse($json);		
+		// output($task);
 
-		output($task);
+		Bootstrap::runTask($task);
 	}
 
 }

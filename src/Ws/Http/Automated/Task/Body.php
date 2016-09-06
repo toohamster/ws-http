@@ -11,14 +11,14 @@ class Body
 	 * 
 	 * @var map
 	 */
-	private $vars = [];
+	public $vars = [];
 
 	/**
 	 * 请求列表
 	 * 
 	 * @var map
 	 */
-	private $requests = [];
+	public $requests = [];
 
 	/**
 	 * 解析生成 Task\Body 对象

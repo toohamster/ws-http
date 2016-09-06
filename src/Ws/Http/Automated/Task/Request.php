@@ -13,13 +13,7 @@ class Request
 	 * id
 	 * @var string
 	 */
-	private $id;
-
-	/**
-	 * 名称
-	 * @var string
-	 */
-	private $name;
+	public $id;
 
 	/**
 	 * 类型: 1. 请求 ; 2. 暂停
@@ -28,7 +22,7 @@ class Request
 	 * 
 	 * @var string
 	 */
-	private $type;
+	public $type;
 
 	/**
 	 * 解析生成 Task\Request 对象
@@ -47,14 +41,14 @@ class Request
 			case 1:
 				$obj->name = $params['name'];
 				$obj->url = $params['url'];
-				$obj->protocol = $params['protocol'];
-				$obj->method = strtoupper(trim($params['method']));				
+				$obj->method = strtoupper(trim($params['method']));
 
 				$obj->setAuthorization($params['authorization']);
 				$obj->setProxy($params['proxy']);
+				$obj->setTimeout(empty($params['timeout']) ? null : $params['timeout']);
 
 				// 设置默认请求头
-				$obj->headers['Content-Type'] = 'text/plain';
+				// $obj->headers['Content-Type'] = 'text/plain';
 
 				// 处理请求数据
 				switch ($obj->method)
@@ -194,6 +188,39 @@ class Request
 		}
 	}
 
+	public function setTimeout($timeout)
+	{
+		// 默认是 30 秒
+		$this->timeout = ['s', 30];
+
+		if ( empty($timeout) ) return;
+
+		$timeout = trim($timeout);
+		if (preg_match('/ms$/i',$timeout))
+		{
+			$this->timeout[0] = 'ms';
+			$timeout = str_ireplace('ms', '', $timeout);
+		}
+		else if (preg_match('/s$/i',$timeout))
+		{
+			$timeout = str_ireplace('s', '', $timeout);
+		}
+		else
+		{
+			$timeout = 30;
+		}
+
+		$timeout = intval(trim($timeout));
+		if ( $timeout < 1 )
+		{
+			$this->timeout = ['s', 30];
+		}
+		else
+		{
+			$this->timeout[1] = $timeout;
+		}
+	}
+
 	public function setProxy($proxy=[])
 	{
 		$this->proxy = false;
@@ -245,6 +272,27 @@ class Request
 					break;
 			}
 		}
+	}
+
+	public function toArray()
+	{
+
+		if ($this->isDelay())
+		{
+			return ['id' => $this->id, 'type' => 2, 'delay' => $this->delay];
+		}
+
+		return [
+			'id' => $this->id, 'type' => 1,
+			'name'	=> $this->name,
+			'url'	=> $this->url,
+			'method'	=> $this->method,
+			'authorization'	=> $this->authorization,
+			'proxy'	=> $this->proxy,
+			'timeout'	=> $this->timeout,			
+			'headers'	=> $this->headers,
+			'data'	=> $this->data,
+		];
 	}
 
 }

@@ -87,7 +87,7 @@ $response = $httpRequest->post('http://mockbin.com/request', $headers, $query);
 $response->code;        // 请求响应码(HTTP Status code)
 $response->curl_info;   // curl信息(HTTP Curl info)
 $response->headers;     // 响应头(Headers)
-$response->body;        // 处理后的响应消息体(Parsed body)
+$response->body;        // 处理后的响应消息体(Parsed body), 默认为 false
 $response->raw_body;    // 原始响应消息体(Unparsed body)
 ```
 

@@ -5,7 +5,7 @@ class Response
     public $code;
     public $curl_info;
     public $raw_body;
-    public $body;
+    public $body = false;
     public $headers;
 
     /**
@@ -19,17 +19,23 @@ class Response
         $this->code     = intval($curl_info['http_code']);
         $this->headers  = $this->parseHeaders($headers);
         $this->raw_body = $raw_body;
-        $this->body     = $raw_body;
         $this->curl_info     = $curl_info;
 
-        // make sure raw_body is the first argument
-        array_unshift($json_args, $raw_body);
+        if (!empty($this->headers['Content-Type']))
+        {
+            $ct = trim($this->headers['Content-Type']);
+            if ( false !== stripos($ct, 'application/json') )
+            {
+                // make sure raw_body is the first argument
+                array_unshift($json_args, $raw_body);
 
-        $json = call_user_func_array('json_decode', $json_args);
+                $json = call_user_func_array('json_decode', $json_args);
 
-        if (json_last_error() === JSON_ERROR_NONE) {
-            $this->body = $json;
-        }
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $this->body = $json;
+                }
+            }
+        }        
     }
 
     /**

@@ -71,6 +71,17 @@ class ARequest
     }
 
     /**
+     * Set a timeout
+     *
+     * @param integer $ms timeout value in millisecond
+     * @return integer
+     */
+    public static function timeoutMs($ms)
+    {
+        return Request::create('default')->timeoutMs($ms);
+    }
+    
+    /**
      * Set default headers to send on every request
      *
      * @param array $headers headers array
