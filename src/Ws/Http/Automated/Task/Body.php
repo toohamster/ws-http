@@ -53,4 +53,26 @@ class Body
 		$this->requests[] = Request::parse($request);;
 	}
 
+    /**
+     * 替换查询参数并返回
+     *
+     * @param  string $value 待替换的参数值
+     *
+     * @return string
+     */
+    public function varReplace($value)
+    {
+    	if (is_string($value) && !empty($this->vars)) {
+            foreach ($this->vars as $key => $val) {
+	            $key = '${' . trim($key) . '}';
+
+	            if (empty($val)) {
+	                $val = '';
+	            }
+	            $value = str_ireplace($key, $val, $value);
+	        }
+        }
+        return $value;
+    }
+
 }

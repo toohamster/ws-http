@@ -230,8 +230,8 @@ class Request
 			
 			$this->proxy = [
 				'address'	=> trim($proxy['address']),
-				'port'	=> intval($proxy['port']),
-				'tunnel'	=> $proxy['tunnel'],
+				'port'	=> trim($proxy['port']),
+				'tunnel'	=> trim($proxy['tunnel']),
 			];
 
 			$type = strtolower( trim($proxy['type']) );

@@ -23,7 +23,7 @@ class Bootstrap
 	{
 		output($task->name, $task->id);
 
-		$result = [];
+		$data = [];
 
 		$requests = $task->body->requests;
 		foreach ($requests as $request)
@@ -37,68 +37,69 @@ class Bootstrap
 			}
 			else
 			{
-				$result[] = self::doRequest($request, $task->type);
+				// 
+				try
+				{
+					$httpResponse = self::doRequest($request, $task);
+
+					output($httpResponse);
+				}
+				catch(GlobalException $ex)
+				{
+					output($ex->getMessage());
+				}
+				
+				break;
 			}
 		}
 
 	}
 
-	public static function doRequest(TaskRequest $request, $taskType)
+	public static function doRequest(TaskRequest $request, Task $task)
 	{
 		if ($request->isDelay()) return null;
 
 		output($request->name, $request->id);
 
 		$httpRequest = HttpRequest::create();
-		try
+		if ( $request->authorization )
 		{
-			if ( $request->authorization )
-			{
-				$httpRequest->auth($request->authorization['type'],
-					$request->authorization['user'],
-					$request->authorization['password']);
-			}
-
-			switch ($request->timeout[0])
-			{
-				case 's':
-					$httpRequest->timeout($request->timeout[1]);
-					break;
-				case 'ms':
-					$httpRequest->timeoutMs($request->timeout[1]);
-					break;
-			}
-
-			if ($request->proxy)
-			{
-				$httpRequest->proxy($request->proxy['address'],
-					$request->proxy['port'],
-					$request->proxy['type'],
-					$request->proxy['tunnel']);
-
-				if (!empty($request->proxy['auth']))
-				{
-					$httpRequest->proxyAuth($request->proxy['auth']['user'], 
-						$request->proxy['auth']['password'],
-						$request->proxy['auth']['method']);
-				}
-			}
-
-			$httpResponse = $httpRequest->send($request->method, 
-				$request->url,
-				$request->data,
-				$request->headers);
-
-			output($httpResponse->curl_info, $httpResponse->code);
-		}
-		catch(GlobalException $ex)
-		{
-			output($ex->getMessage());
+			$httpRequest->auth( $task->body->varReplace($request->authorization['type']),
+				$task->body->varReplace($request->authorization['user']),
+				$task->body->varReplace($request->authorization['password']));
 		}
 
-		// 释放内存
-		$httpRequest = null;
-		unset($httpRequest);
+		switch ($request->timeout[0])
+		{
+			case 's':
+				$httpRequest->timeout($task->body->varReplace($request->timeout[1]));
+				break;
+			case 'ms':
+				$httpRequest->timeoutMs($task->body->varReplace($request->timeout[1]));
+				break;
+		}
+
+		if ($request->proxy)
+		{
+			$httpRequest->proxy($task->body->varReplace($request->proxy['address']),
+				$task->body->varReplace($request->proxy['port']),
+				$task->body->varReplace($request->proxy['type']),
+				$task->body->varReplace($request->proxy['tunnel']));
+
+			if (!empty($request->proxy['auth']))
+			{
+				$httpRequest->proxyAuth($task->body->varReplace($request->proxy['auth']['user']), 
+					$task->body->varReplace($request->proxy['auth']['password']),
+					$task->body->varReplace($request->proxy['auth']['method']));
+			}
+		}
+
+		$httpResponse = $httpRequest->send($request->method, 
+			$task->body->varReplace($request->url),
+			$task->body->varReplace($request->data),
+			$task->body->varReplace($request->headers));
+
+		return $httpResponse;
 	}
 
 }

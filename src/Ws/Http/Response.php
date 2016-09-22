@@ -35,7 +35,7 @@ class Response
                     $this->body = $json;
                 }
             }
-        }        
+        }
     }
 
     /**
