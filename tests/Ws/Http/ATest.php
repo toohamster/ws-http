@@ -15,11 +15,82 @@ class ATest implements ITest
 	public function run()
 	{
 		output(__METHOD__);
-		$this->testAuth();
-		$this->testGet();
-		$this->testPost();
-		$this->testJson();
-		$this->testJsonFile();
+		$this->testAAA();
+		// $this->testAuth();
+		// $this->testGet();
+		// $this->testPost();
+		// $this->testJson();
+		// $this->testJsonFile();
+	}
+
+	private function testAAA()
+	{
+		output(__METHOD__);
+		try
+		{
+			$httpRequest = HttpRequest::create();
+			$httpRequest->timeout(10);
+			// $httpRequest->proxy('127.0.0.1','8888');
+
+			$httpResponse = $httpRequest->get("http://117.121.26.105/admin/login",[
+					'User-Agent'	=> 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:47.0) Gecko/20100101 Firefox/47.0',
+				]);
+
+			// $httpRequest->get("http://117.121.26.105/assets/application-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css");
+			// $httpRequest->get("http://117.121.26.105/assets/application-3be7df993ba49cb551697afa2cc2aa789f6b450516bdf1913f9d901b11cbb391.js");
+			// $httpRequest->get("http://117.121.26.105/favicon.ico");
+
+			output($httpResponse->headers);
+			output($httpResponse->raw_body);
+
+			$cookie = $httpResponse->headers['Set-Cookie'];
+			$raw_body = $httpResponse->raw_body;
+			// get token
+			preg_match('<meta name="csrf-token" content="(.+)" />', $raw_body, $tt);
+
+			$authenticity_token = $tt[1];
+
+			// $cookie = str_ireplace('%3D', '=', $cookie);
+			// $cookie = str_ireplace('; path=/; HttpOnly', '', $cookie);
+			$httpRequest->cookie($cookie);
+			$body = [
+					// 'utf8'	=> '&#x2713;',
+					// 'authenticity_token'	=> $authenticity_token,
+					'login'	=> 'admin',
+					'password'	=> 'lottery',
+					// '_method'	=> 'post',
+				];
+			// 
+			$httpResponse = $httpRequest->post("http://117.121.26.105/admin/login",[
+					'Content-Type'	=> 'application/x-www-form-urlencoded',
+					'Host'	=> '117.121.26.105',
+					'Pragmal'	=> 'no-cache',
+					'Upgrade-Insecure-Requests'	=> 1,
+					'Cache-Control'	=> 'no-cache',
+					'Origin'	=> 'http://117.121.26.105',
+					'X-CSRF-Token'	=> $authenticity_token,
+					'User-Agent'	=> 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:47.0) Gecko/20100101 Firefox/47.0',
+					'Connection'	=> 'keep-alive',
+					'Accept'	=> 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+
+					'X-Requested-With'	=> 'XMLHttpRequest',
+					'Referer'	=> 'http://117.121.26.105/admin/login',
+					'Accept-Encoding'	=> 'gzip, deflate',
+					'Accept-Language'	=> 'zh-CN,zh;q=0.8',
+					// 'Cookie'	=> $cookie,
+					
+				], $body);
+				
+
+			output($httpResponse->headers);
+			output($httpResponse->raw_body);
+			
+		}
+		catch(GlobalException $ex)
+		{
+			output( $ex->getMessage() , __METHOD__);
+		}
+
 	}
 
 	private function testAuth()
@@ -117,7 +188,7 @@ class ATest implements ITest
 			output( $ex->getMessage() , __METHOD__ . ':github.com');
 		}
 		
-		// 测试代理功能,本地使用Lantern (http://127.0.0.1:8787)
+		// æµè¯ä»£çåè½,æ¬å°ä½¿ç¨Lantern (http://127.0.0.1:8787)
 		try 
 		{
 			output(__LINE__);
@@ -149,7 +220,7 @@ class ATest implements ITest
 		{
 			$httpRequest = HttpRequest::create();
 			$httpRequest->timeout(30);
-			// 测试的域名在墙外 本地使用Lantern (http://127.0.0.1:8787)
+			// æµè¯çååå¨å¢å¤ æ¬å°ä½¿ç¨Lantern (http://127.0.0.1:8787)
 			$httpRequest->proxy('http://127.0.0.1', 8787);
 
 			$httpResponse = $httpRequest->post("https://api.balancedpayments.com/api_keys");

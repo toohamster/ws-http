@@ -321,6 +321,7 @@ class Request
      */
     public function post($url, $headers = [], $body = null)
     {
+        output(func_get_args(),'ppp');
         return $this->send(Method::POST, $url, $body, $headers);
     }
 
@@ -435,7 +436,7 @@ class Request
 			} else {
 				curl_setopt($handle, CURLOPT_CUSTOMREQUEST, $method);
 			}
-
+            
             curl_setopt($handle, CURLOPT_POSTFIELDS, $body);
         } elseif (is_array($body)) {
             if (strpos($url, '?') !== false) {
@@ -542,7 +543,6 @@ class Request
         if (!array_key_exists('expect', $combinedHeaders)) {
             $formattedHeaders[] = 'expect:';
         }
-
         return $formattedHeaders;
     }
 
