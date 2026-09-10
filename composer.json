@@ -1,0 +1,30 @@
+{
+    "name": "toohamster/ws-http",
+    "description": "ws-http: Simplified, lightweight HTTP client library",
+    "keywords": ["http", "ws-http"],
+    "license": "MIT",
+    "homepage": "https://github.com/toohamster/ws-http",
+    "support": {
+        "issues": "https://github.com/toohamster/ws-http/issues",
+        "source": "https://github.com/toohamster/ws-http"
+    },
+    "authors": [
+        {
+            "name": "toohamster",
+            "email": "449211678@qq.com"
+        }
+    ],
+    "require": {
+        "php": ">=5.4"
+    },
+    "require-dev": {
+        
+    },
+    "autoload": {
+        "classmap": [],
+        "files": [],
+        "psr-4": {"Ws\\Http\\": "src/Ws/Http"}
+    },
+    "minimum-stability": "dev"
+}
+

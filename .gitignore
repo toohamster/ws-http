@@ -1,0 +1,6 @@
+/vendor
+/tests/data
+composer.phar
+composer.lock
+.DS_Store
+Thumbs.db
