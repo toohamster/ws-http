@@ -211,8 +211,9 @@ timeout 为 0 或负数拒绝(修复 v1 静默回退 30s 的隐式行为——v2
 | V6 | 时间字符串格式合法且在限额内 | 402 |
 | V7 | proxy.type ∈ 枚举;port ∈ [1,65535];auth.type ∈ 枚举 | 402 |
 | V8 | variables[].name 唯一且合法(设计/15 §2 命名规则) | 402 |
-| V9 | 全部 assertions 的 json 路径、全部 extract 的 attr 路径通过 `ExpressionEvaluator::validate()`(提前暴露脚本错误) | 402 |
+| V9 | 全部 assertions 的 json 路径、全部 extract 的 json 路径通过 `ExpressionEvaluator::validate()`(提前暴露脚本错误) | 402 |
 | V10 | extract[].var 引用的变量名必须已声明(variables 或前置步骤 extract)——**保守策略:加载期不校验跨步骤引用,运行期未声明变量按 design/15 §4 处理** | — |
+| V11 | extract[].source=template 时,path 模式串必须含至少一个 `{name}` 占位符(纯字面量模式是配置错误) | 402 |
 
 > 校验失败消息格式:`{jsonPointer}: {原因}`,如 `/steps/2/body/mode: "form" is not a valid mode`。
 
