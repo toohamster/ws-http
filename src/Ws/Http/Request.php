@@ -27,7 +27,10 @@ class Request
      */
     public function withOptions(callable $mutator): self
     {
-        return new static($mutator($this->options));
+        $clone = clone $this;
+        $clone->options = $mutator($this->options);
+
+        return $clone;
     }
 
     public function options(): RequestOptions
@@ -117,6 +120,11 @@ class Request
             if ($body instanceof PreparedBody) {
                 $headers = $this->applyContentType($body->contentType, $headers);
                 $body = $body->content;
+            }
+            // cURL 只对 POST 自动补 Content-Type;PUT/PATCH/DELETE 的字符串 body
+            // 必须显式给类型,否则部分服务端拒收 body(实测 httpbin 丢 body)
+            if (\is_string($body) && !$this->hasContentType($headers)) {
+                $headers = $this->applyContentType('text/plain', $headers);
             }
             $postFields = $body;
         } else {
@@ -263,6 +271,20 @@ class Request
         }
 
         return $bag->toCurlHeaders();
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private function hasContentType(array $headers): bool
+    {
+        foreach ($headers as $name => $_) {
+            if (strcasecmp($name, 'Content-Type') === 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

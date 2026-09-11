@@ -58,13 +58,12 @@ ws-http 是 cURL HTTP 客户端库,重构目标架构(见 design/10):
 | design/17 | plugin:三件套(认证+端点+语义化方法)、4 类型注册机制、内建样例 |
 | design/20 | 实施总计划:S1–S11 步骤与 Done 标准 |
 
-## 项目当前状态(S4 已完成,2026-09-11)
+## 项目当前状态(S5 已完成,2026-09-11)
 
-- **S1–S4 完成**:Unit 82 tests 192 assertions 全绿;`php74 vendor/bin/phpunit --testsuite Unit`
-- S2 交付:Exception、RequestException(访问器风格)、Method(+NO_BODY_METHODS)+ MethodHelper、HeaderBag
-- S3 交付:RequestOptions(wither 不可变;timeout 默认 30;mutate() 克隆 HeaderBag)
-- S4 交付:Response(statusLine/jsonError/isOk/totalTime)、PreparedBody、Body(json/form/multipart/file/raw)、UrlKit(buildHttpQuery 拍平 + encodeUrl 预编码方案,替代旧 bin2hex 技巧)
-- 约定:不可变 = private typed property + 访问器 + @immutable 注释;原始大小写保留"首次出现"者;接口不能有方法体(静态逻辑放 Helper 类)
+- **S1–S5 完成,core 层全部落地**:Unit 103 tests 243 assertions 全绿;Integration(httpbin)10 tests 全绿
+- 测试命令:Unit `/usr/local/bin/php74 vendor/bin/phpunit --testsuite Unit`;Integration `--testsuite Integration`(真实网络)
+- S5 交付:Request(send 咽喉点、executeCurl 可测缝、withOptions clone 派生、体方法字符串 body 自动补 Content-Type: text/plain——cURL 只对 POST 自动补类型)、FakeCurlRequest 测试替身(专属类+静态捕获)
+- 约定:不可变 = private typed property + 访问器 + @immutable 注释;原始大小写保留"首次出现"者;接口不能有方法体(静态逻辑放 Helper 类);测试替身不用匿名类(见 debugging.md)
 
 ## 用户偏好
 
