@@ -1,4 +1,8 @@
-<?php namespace Ws\Http;
+<?php
+
+declare(strict_types=1);
+
+namespace Ws\Http;
 
 /**
  * Hypertext Transfer Protocol (HTTP) Method Registry
@@ -8,65 +12,72 @@
 interface Method
 {
     // RFC7231
-    const GET = 'GET';
-    const HEAD = 'HEAD';
-    const POST = 'POST';
-    const PUT = 'PUT';
-    const DELETE = 'DELETE';
-    const CONNECT = 'CONNECT';
-    const OPTIONS = 'OPTIONS';
-    const TRACE = 'TRACE';
+    public const GET = 'GET';
+    public const HEAD = 'HEAD';
+    public const POST = 'POST';
+    public const PUT = 'PUT';
+    public const DELETE = 'DELETE';
+    public const CONNECT = 'CONNECT';
+    public const OPTIONS = 'OPTIONS';
+    public const TRACE = 'TRACE';
 
     // RFC3253
-    const BASELINE = 'BASELINE';
+    public const BASELINE = 'BASELINE';
 
     // RFC2068
-    const LINK = 'LINK';
-    const UNLINK = 'UNLINK';
+    public const LINK = 'LINK';
+    public const UNLINK = 'UNLINK';
 
     // RFC3253
-    const MERGE = 'MERGE';
-    const BASELINECONTROL = 'BASELINE-CONTROL';
-    const MKACTIVITY = 'MKACTIVITY';
-    const VERSIONCONTROL = 'VERSION-CONTROL';
-    const REPORT = 'REPORT';
-    const CHECKOUT = 'CHECKOUT';
-    const CHECKIN = 'CHECKIN';
-    const UNCHECKOUT = 'UNCHECKOUT';
-    const MKWORKSPACE = 'MKWORKSPACE';
-    const UPDATE = 'UPDATE';
-    const LABEL = 'LABEL';
+    public const MERGE = 'MERGE';
+    public const BASELINECONTROL = 'BASELINE-CONTROL';
+    public const MKACTIVITY = 'MKACTIVITY';
+    public const VERSIONCONTROL = 'VERSION-CONTROL';
+    public const REPORT = 'REPORT';
+    public const CHECKOUT = 'CHECKOUT';
+    public const CHECKIN = 'CHECKIN';
+    public const UNCHECKOUT = 'UNCHECKOUT';
+    public const MKWORKSPACE = 'MKWORKSPACE';
+    public const UPDATE = 'UPDATE';
+    public const LABEL = 'LABEL';
 
     // RFC3648
-    const ORDERPATCH = 'ORDERPATCH';
+    public const ORDERPATCH = 'ORDERPATCH';
 
     // RFC3744
-    const ACL = 'ACL';
+    public const ACL = 'ACL';
 
     // RFC4437
-    const MKREDIRECTREF = 'MKREDIRECTREF';
-    const UPDATEREDIRECTREF = 'UPDATEREDIRECTREF';
+    public const MKREDIRECTREF = 'MKREDIRECTREF';
+    public const UPDATEREDIRECTREF = 'UPDATEREDIRECTREF';
 
     // RFC4791
-    const MKCALENDAR = 'MKCALENDAR';
+    public const MKCALENDAR = 'MKCALENDAR';
 
     // RFC4918
-    const PROPFIND = 'PROPFIND';
-    const LOCK = 'LOCK';
-    const UNLOCK = 'UNLOCK';
-    const PROPPATCH = 'PROPPATCH';
-    const MKCOL = 'MKCOL';
-    const COPY = 'COPY';
-    const MOVE = 'MOVE';
+    public const PROPFIND = 'PROPFIND';
+    public const LOCK = 'LOCK';
+    public const UNLOCK = 'UNLOCK';
+    public const PROPPATCH = 'PROPPATCH';
+    public const MKCOL = 'MKCOL';
+    public const COPY = 'COPY';
+    public const MOVE = 'MOVE';
 
     // RFC5323
-    const SEARCH = 'SEARCH';
+    public const SEARCH = 'SEARCH';
 
     // RFC5789
-    const PATCH = 'PATCH';
+    public const PATCH = 'PATCH';
 
     // RFC5842
-    const BIND = 'BIND';
-    const UNBIND = 'UNBIND';
-    const REBIND = 'REBIND';
+    public const BIND = 'BIND';
+    public const UNBIND = 'UNBIND';
+    public const REBIND = 'REBIND';
+
+    /**
+     * 不允许携带请求体的方法(design/11 §6)。
+     *
+     * @var string[]
+     */
+    public const NO_BODY_METHODS = [self::GET, self::HEAD, self::CONNECT];
 }

@@ -1,603 +1,290 @@
-<?php namespace Ws\Http;
+<?php
 
+declare(strict_types=1);
+
+namespace Ws\Http;
+
+/**
+ * cURL HTTP 引擎(design/11 §1)。
+ *
+ * 职责:持有 RequestOptions,组装 cURL 会话并执行,产出 Response。
+ * 所有快捷方法(get/post/...)最终都经 send() 这一个咽喉点。
+ */
 class Request
 {
-    private static $instances = [];
+    /** @var RequestOptions 当前配置(不可变对象,withOptions 派生) */
+    private $options;
 
-    private $cookie = null;
-    private $cookieFile = null;
-    private $curlOpts = [];
-    private $defaultHeaders = [];
-    private $jsonOpts = [];
-    private $socketTimeout = null;
-    private $socketTimeoutMs = null;
-    private $verifyPeer = true;
-    private $verifyHost = true;
-    private $verifyFile = null;
-
-    private $auth = [
-        'user' => '',
-        'pass' => '',
-        'method' => CURLAUTH_BASIC
-    ];
-
-    private $proxy = [
-        'port' => false,
-        'tunnel' => false,
-        'address' => false,
-        'type' => CURLPROXY_HTTP,
-        'auth' => [
-            'user' => '',
-            'pass' => '',
-            'method' => CURLAUTH_BASIC
-        ]
-    ];
-
-    private function __construct()
+    public function __construct(?RequestOptions $options = null)
     {
-        $this->verifyFile = __DIR__ . '/_ssl/ca-bundle.crt';
+        $this->options = $options ?? new RequestOptions();
     }
 
     /**
-     * Get a Object
+     * 派生新 Request:wither 回调修改配置副本,原实例不变。
      *
-     * @param string $id object identification, default auto build
-     * @return \Ws\Http\Request
+     * @param callable(RequestOptions): RequestOptions $mutator
      */
-    public static function create($id = null)
+    public function withOptions(callable $mutator): self
     {
-        if ( empty($id) )
-        {
-            $id = md5(__METHOD__) . count(self::$instances); 
-        }
-        if ( empty(self::$instances[$id]) )
-        {
-            self::$instances[$id] = new self();  
-        }
-        return self::$instances[$id];
+        return new static($mutator($this->options));
     }
 
-    /**
-     * Set JSON decode mode
-     *
-     * @param bool $assoc When TRUE, returned objects will be converted into associative arrays.
-     * @param integer $depth User specified recursion depth.
-     * @param integer $options Bitmask of JSON decode options. Currently only JSON_BIGINT_AS_STRING is supported (default is to cast large integers as floats)
-     * @return array
-     */
-    public function jsonOpts($assoc = false, $depth = 512, $options = 0)
+    public function options(): RequestOptions
     {
-        return $this->jsonOpts = [$assoc, $depth, $options];
+        return $this->options;
     }
 
-    /**
-     * Verify SSL peer
-     *
-     * @param bool $enabled enable SSL verification, by default is true
-     * @return bool
-     */
-    public function verifyPeer($enabled)
-    {
-        return $this->verifyPeer = $enabled;
-    }
+    // ---------- 快捷方法(语义表见 design/11 §1.3) ----------
 
     /**
-     * Verify SSL host
-     *
-     * @param bool $enabled enable SSL host verification, by default is true
-     * @return bool
+     * @param array|object|null $parameters 拍平进 query string
      */
-    public function verifyHost($enabled)
-    {
-        return $this->verifyHost = $enabled;
-    }
-
-    /**
-     * Verify SSL File
-     *
-     * @param string $file SSL verification file
-     * @return string
-     */
-    public function verifyFile($file)
-    {
-        return $this->verifyFile = $file;
-    }
-
-    /**
-     * Get Verify SSL File
-     * 
-     * @return string
-     */
-    public function getVerifyFile()
-    {
-        return $this->verifyFile;
-    }
-
-    /**
-     * Set a timeout
-     *
-     * @param integer $seconds timeout value in seconds
-     * @return integer
-     */
-    public function timeout($seconds)
-    {
-        return $this->socketTimeout = $seconds;
-    }
-
-    /**
-     * Set a timeout ms
-     *
-     * @param integer $ms timeout value in millisecond
-     * @return integer
-     */
-    public function timeoutMs($ms)
-    {
-        return $this->socketTimeoutMs = $ms;
-    }
-
-    /**
-     * Set default headers to send on every request
-     *
-     * @param array $headers headers array
-     * @return array
-     */
-    public function defaultHeaders($headers)
-    {
-        return $this->defaultHeaders = array_merge($this->defaultHeaders, $headers);
-    }
-
-    /**
-     * Set a new default header to send on every request
-     *
-     * @param string $name header name
-     * @param string $value header value
-     * @return string
-     */
-    public function defaultHeader($name, $value)
-    {
-        return $this->defaultHeaders[$name] = $value;
-    }
-
-    /**
-     * Clear all the default headers
-     */
-    public function clearDefaultHeaders()
-    {
-        return $this->defaultHeaders = [];
-    }
-
-    /**
-     * Set curl options to send on every request
-     *
-     * @param array $options options array
-     * @return array
-     */
-    public function curlOpts($options)
-    {
-        return $this->mergeCurlOptions($this->curlOpts, $options);
-    }
-
-    /**
-     * Set a new default header to send on every request
-     *
-     * @param string $name header name
-     * @param string $value header value
-     * @return string
-     */
-    public function curlOpt($name, $value)
-    {
-        return $this->curlOpts[$name] = $value;
-    }
-
-    /**
-     * Clear all the default headers
-     */
-    public function clearCurlOpts()
-    {
-        return $this->curlOpts = [];
-    }
-
-    /**
-     * Set a cookie string for enabling cookie handling
-     *
-     * @param string $cookie
-     */
-    public function cookie($cookie)
-    {
-        $this->cookie = $cookie;
-    }
-
-    /**
-     * Set a cookie file path for enabling cookie handling
-     *
-     * $cookieFile must be a correct path with write permission
-     *
-     * @param string $cookieFile - path to file for saving cookie
-     */
-    public function cookieFile($cookieFile)
-    {
-        $this->cookieFile = $cookieFile;
-    }
-
-    /**
-     * Set authentication method to use
-     *
-     * @param string $username authentication username
-     * @param string $password authentication password
-     * @param integer $method authentication method
-     */
-    public function auth($username = '', $password = '', $method = CURLAUTH_BASIC)
-    {
-        $this->auth['user'] = $username;
-        $this->auth['pass'] = $password;
-        $this->auth['method'] = $method;
-    }
-
-    /**
-     * Set proxy to use
-     *
-     * @param string $address proxy address
-     * @param integer $port proxy port
-     * @param integer $type (Available options for this are CURLPROXY_HTTP, CURLPROXY_HTTP_1_0 CURLPROXY_SOCKS4, CURLPROXY_SOCKS5, CURLPROXY_SOCKS4A and CURLPROXY_SOCKS5_HOSTNAME)
-     * @param bool $tunnel enable/disable tunneling
-     */
-    public function proxy($address, $port = 1080, $type = CURLPROXY_HTTP, $tunnel = false)
-    {
-        $this->proxy['type'] = $type;
-        $this->proxy['port'] = $port;
-        $this->proxy['tunnel'] = $tunnel;
-        $this->proxy['address'] = $address;
-    }
-
-    /**
-     * Set proxy authentication method to use
-     *
-     * @param string $username authentication username
-     * @param string $password authentication password
-     * @param integer $method authentication method
-     */
-    public function proxyAuth($username = '', $password = '', $method = CURLAUTH_BASIC)
-    {
-        $this->proxy['auth']['user'] = $username;
-        $this->proxy['auth']['pass'] = $password;
-        $this->proxy['auth']['method'] = $method;
-    }
-
-    /**
-     * Send a GET request to a URL
-     *
-     * @param string $url URL to send the GET request to
-     * @param array $headers additional headers to send
-     * @param mixed $parameters parameters to send in the querystring
-     * @return \Ws\Http\Response
-     */
-    public function get($url, $headers = [], $parameters = null)
+    public function get(string $url, array $headers = [], $parameters = null): Response
     {
         return $this->send(Method::GET, $url, $parameters, $headers);
     }
 
-    /**
-     * Send a HEAD request to a URL
-     * @param string $url URL to send the HEAD request to
-     * @param array $headers additional headers to send
-     * @param mixed $parameters parameters to send in the querystring
-     * @return \Ws\Http\Response
-     */
-    public function head($url, $headers = [], $parameters = null)
+    public function head(string $url, array $headers = [], $parameters = null): Response
     {
         return $this->send(Method::HEAD, $url, $parameters, $headers);
     }
 
-    /**
-     * Send a OPTIONS request to a URL
-     * @param string $url URL to send the OPTIONS request to
-     * @param array $headers additional headers to send
-     * @param mixed $parameters parameters to send in the querystring
-     * @return \Ws\Http\Response
-     */
-    public function options($url, $headers = [], $parameters = null)
+    public function options_(string $url, array $headers = [], $parameters = null): Response
     {
         return $this->send(Method::OPTIONS, $url, $parameters, $headers);
     }
 
     /**
-     * Send a CONNECT request to a URL
-     * @param string $url URL to send the CONNECT request to
-     * @param array $headers additional headers to send
-     * @param mixed $parameters parameters to send in the querystring
-     * @return \Ws\Http\Response
+     * @param mixed $body 请求体
      */
-    public function connect($url, $headers = [], $parameters = null)
+    public function post(string $url, array $headers = [], $body = null): Response
     {
-        return $this->send(Method::CONNECT, $url, $parameters, $headers);
-    }
-
-    /**
-     * Send POST request to a URL
-     * @param string $url URL to send the POST request to
-     * @param array $headers additional headers to send
-     * @param mixed $body POST body data
-     * @return \Ws\Http\Response
-     */
-    public function post($url, $headers = [], $body = null)
-    {
-        output(func_get_args(),'ppp');
         return $this->send(Method::POST, $url, $body, $headers);
     }
 
-    /**
-     * Send DELETE request to a URL
-     * @param string $url URL to send the DELETE request to
-     * @param array $headers additional headers to send
-     * @param mixed $body DELETE body data
-     * @return \Ws\Http\Response
-     */
-    public function delete($url, $headers = [], $body = null)
-    {
-        return $this->send(Method::DELETE, $url, $body, $headers);
-    }
-
-    /**
-     * Send PUT request to a URL
-     * @param string $url URL to send the PUT request to
-     * @param array $headers additional headers to send
-     * @param mixed $body PUT body data
-     * @return \Ws\Http\Response
-     */
-    public function put($url, $headers = [], $body = null)
+    public function put(string $url, array $headers = [], $body = null): Response
     {
         return $this->send(Method::PUT, $url, $body, $headers);
     }
 
-    /**
-     * Send PATCH request to a URL
-     * @param string $url URL to send the PATCH request to
-     * @param array $headers additional headers to send
-     * @param mixed $body PATCH body data
-     * @return \Ws\Http\Response
-     */
-    public function patch($url, $headers = [], $body = null)
+    public function patch(string $url, array $headers = [], $body = null): Response
     {
         return $this->send(Method::PATCH, $url, $body, $headers);
     }
 
-    /**
-     * Send TRACE request to a URL
-     * @param string $url URL to send the TRACE request to
-     * @param array $headers additional headers to send
-     * @param mixed $body TRACE body data
-     * @return \Ws\Http\Response
-     */
-    public function trace($url, $headers = [], $body = null)
+    public function delete(string $url, array $headers = [], $body = null): Response
+    {
+        return $this->send(Method::DELETE, $url, $body, $headers);
+    }
+
+    public function trace(string $url, array $headers = [], $body = null): Response
     {
         return $this->send(Method::TRACE, $url, $body, $headers);
     }
 
     /**
-     * This function is useful for serializing multidimensional arrays, and avoid getting
-     * the 'Array to string conversion' notice
-     * @param array|object $data array to flatten.
-     * @param bool|string $parent parent key or false if no parent
-     * @return array
+     * 任意方法(标准/自定义,配合 Method 常量)。
+     *
+     * @param mixed $body
+     * @param array<string, string> $headers
      */
-    public static function buildHTTPCurlQuery($data, $parent = false)
+    public function send(string $method, string $url, $body = null, array $headers = []): Response
     {
-        static $CFClassExist = null;
-        if ( is_null($CFClassExist) )
-        {
-            $CFClassExist = class_exists('CURLFile', false);
-        }
+        $method = strtoupper($method);
+        $options = $this->buildCurlOptions($method, $url, $body, $headers);
+        [$rawResponse, $info] = $this->executeCurl($options);
 
-        $result = [];
-
-        if (is_object($data)) {
-            $data = get_object_vars($data);
-        }
-
-        foreach ($data as $key => $value) {
-            if ($parent) {
-                $new_key = sprintf('%s[%s]', $parent, $key);
-            } else {
-                $new_key = $key;
-            }
-
-            if ($CFClassExist && $value instanceof \CURLFile)
-            {
-                $result[$new_key] = $value;
-            }
-            else if (is_array($value) || is_object($value))
-            {
-                $result = array_merge($result, self::buildHTTPCurlQuery($value, $new_key));
-            }
-            else {
-                $result[$new_key] = $value;
-            }
-        }
-
-        return $result;
+        return $this->buildResponse($rawResponse, $info, $this->options->jsonOpts(), $method, $url);
     }
 
+    // ---------- cURL 组装(内部,可测) ----------
+
     /**
-     * Send a cURL request
-     * @param string $method HTTP method to use
-     * @param string $url URL to send the request to
-     * @param mixed $body request body
-     * @param array $headers additional headers to send
-     * @throws \Ws\Http\Exception if a cURL error occurs
-     * @return \Ws\Http\Response
+     * 组装完整 cURL 选项(design/11 §1.4 流程 1–3)。
+     *
+     * @param mixed $body
+     * @param array<string, string> $headers
+     * @return array<int, mixed>
      */
-    public function send($method, $url, $body = null, $headers = [])
+    protected function buildCurlOptions(string $method, string $url, $body, array $headers): array
     {
-        $handle = curl_init();
+        $curlUrl = $url;
+        $postFields = null;
 
-        if ($method !== Method::GET) {
-			if ($method === Method::POST) {
-				curl_setopt($handle, CURLOPT_POST, true);
-			} else {
-				curl_setopt($handle, CURLOPT_CUSTOMREQUEST, $method);
-			}
-            
-            curl_setopt($handle, CURLOPT_POSTFIELDS, $body);
-        } elseif (is_array($body)) {
-            if (strpos($url, '?') !== false) {
-                $url .= '&';
-            } else {
-                $url .= '?';
+        if (MethodHelper::isBodyAllowed($method)) {
+            // 体方法:body 归一化(PreparedBody → content + Content-Type 头)
+            if ($body instanceof PreparedBody) {
+                $headers = $this->applyContentType($body->contentType, $headers);
+                $body = $body->content;
             }
-
-            $url .= urldecode(http_build_query(self::buildHTTPCurlQuery($body)));
+            $postFields = $body;
+        } else {
+            // GET/HEAD/OPTIONS:数组/对象参数拍平进 query
+            if (\is_array($body) || \is_object($body)) {
+                $query = http_build_query(UrlKit::buildHttpQuery($body));
+                $curlUrl = $url . (strpos($url, '?') !== false ? '&' : '?') . $query;
+            } elseif ($body !== null) {
+                throw new \InvalidArgumentException(
+                    sprintf('%s does not accept a body parameter, pass null or an array', $method)
+                );
+            }
         }
 
-        $curl_base_options = [
-            CURLOPT_URL => self::encodeUrl($url),
+        $base = [
+            CURLOPT_URL            => UrlKit::encodeUrl($curlUrl),
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_HTTPHEADER => $this->getFormattedHeaders($headers),
-            CURLOPT_HEADER => true,
-            CURLOPT_SSL_VERIFYPEER => $this->verifyPeer,
-            //CURLOPT_SSL_VERIFYHOST accepts only 0 (false) or 2 (true). Future versions of libcurl will treat values 1 and 2 as equals
-            CURLOPT_SSL_VERIFYHOST => $this->verifyHost === false ? 0 : 2,
-            // If an empty string, '', is set, a header containing all supported encoding types is sent
-            CURLOPT_ENCODING => ''
+            CURLOPT_MAXREDIRS      => $this->options->maxRedirects(),
+            CURLOPT_HEADER         => true,
+            CURLOPT_ENCODING       => '',
+            CURLOPT_SSL_VERIFYPEER => $this->options->verifyPeer(),
+            CURLOPT_SSL_VERIFYHOST => $this->options->verifyHost() ? 2 : 0,
+            CURLOPT_HTTPHEADER     => $this->formatHeaders($headers),
+            CURLOPT_TIMEOUT        => $this->options->timeout(),
         ];
 
-        if ( $this->verifyPeer )
-        {
-            $curl_base_options[CURLOPT_CAINFO] = $this->getVerifyFile();
-        }
-
-        curl_setopt_array($handle, $this->mergeCurlOptions($curl_base_options, $this->curlOpts));
-
-        if ($this->socketTimeout !== null) {
-            curl_setopt($handle, CURLOPT_TIMEOUT, $this->socketTimeout);
-        }
-        else if ($this->socketTimeoutMs !== null) {
-            if ( $this->socketTimeoutMs < 1000 )
-            {
-                // issue: http://www.laruence.com/2014/01/21/2939.html
-                curl_setopt($handle, CURLOPT_NOSIGNAL, 1);
+        if ($method === Method::POST) {
+            $base[CURLOPT_POST] = true;
+            $base[CURLOPT_POSTFIELDS] = $postFields;
+        } elseif ($method !== Method::GET) {
+            $base[CURLOPT_CUSTOMREQUEST] = $method;
+            if ($postFields !== null) {
+                $base[CURLOPT_POSTFIELDS] = $postFields;
             }
-            curl_setopt($handle, CURLOPT_TIMEOUT_MS, $this->socketTimeoutMs);
         }
 
-        if ($this->cookie) {
-            curl_setopt($handle, CURLOPT_COOKIE, $this->cookie);
+        if ($this->options->verifyPeer() && $this->options->caBundle() !== null) {
+            $base[CURLOPT_CAINFO] = $this->options->caBundle();
         }
 
-        if ($this->cookieFile) {
-            curl_setopt($handle, CURLOPT_COOKIEFILE, $this->cookieFile);
-            curl_setopt($handle, CURLOPT_COOKIEJAR, $this->cookieFile);
+        if ($this->options->timeoutMs() !== null) {
+            if ($this->options->timeoutMs() < 1000) {
+                // 规避 PHP timeout-ms 的 signal 问题(laruence.com/2014/01/21/2939.html)
+                $base[CURLOPT_NOSIGNAL] = 1;
+            }
+            $base[CURLOPT_TIMEOUT_MS] = $this->options->timeoutMs();
         }
 
-        if (!empty($this->auth['user'])) {
-            curl_setopt_array($handle, [
-                CURLOPT_HTTPAUTH    => $this->auth['method'],
-                CURLOPT_USERPWD     => $this->auth['user'] . ':' . $this->auth['pass']
-            ]);
+        if ($this->options->cookie() !== null) {
+            $base[CURLOPT_COOKIE] = $this->options->cookie();
         }
 
-        if ($this->proxy['address'] !== false) {
-            curl_setopt_array($handle, [
-                CURLOPT_PROXYTYPE       => $this->proxy['type'],
-                CURLOPT_PROXY           => $this->proxy['address'],
-                CURLOPT_PROXYPORT       => $this->proxy['port'],
-                CURLOPT_HTTPPROXYTUNNEL => $this->proxy['tunnel'],
-                CURLOPT_PROXYAUTH       => $this->proxy['auth']['method'],
-                CURLOPT_PROXYUSERPWD    => $this->proxy['auth']['user'] . ':' . $this->proxy['auth']['pass']
-            ]);
+        if ($this->options->cookieFile() !== null) {
+            $base[CURLOPT_COOKIEFILE] = $this->options->cookieFile();
+            $base[CURLOPT_COOKIEJAR] = $this->options->cookieFile();
         }
 
-        $response   = curl_exec($handle);
-        $error      = curl_error($handle);
-        $info       = curl_getinfo($handle);
+        $auth = $this->options->auth();
+        if ($auth !== null && $auth['user'] !== '') {
+            $base[CURLOPT_HTTPAUTH] = $auth['method'];
+            $base[CURLOPT_USERPWD] = $auth['user'] . ':' . $auth['pass'];
+        }
 
+        $proxy = $this->options->proxy();
+        if ($proxy !== null && $proxy['address'] !== '') {
+            $base[CURLOPT_PROXY] = $proxy['address'];
+            $base[CURLOPT_PROXYPORT] = $proxy['port'];
+            $base[CURLOPT_PROXYTYPE] = $proxy['type'];
+            $base[CURLOPT_HTTPPROXYTUNNEL] = $proxy['tunnel'];
+            if ($proxy['auth'] !== null) {
+                $base[CURLOPT_PROXYAUTH] = $proxy['auth']['method'];
+                $base[CURLOPT_PROXYUSERPWD] = $proxy['auth']['user'] . ':' . $proxy['auth']['pass'];
+            }
+        }
+
+        // 优先级:用户 curlOpt > 上面的全部组装(design/11 §1.6)
+        return $this->options->curlOpts() + $base;
+    }
+
+    /**
+     * cURL 执行缝隙:返回 [rawResponse, curlInfo];传输失败抛 RequestException。
+     * 单测经 override 注入假响应,不发真实网络。
+     *
+     * @param array<int, mixed> $options
+     * @return array{0: string|false, 1: array<string, mixed>}
+     */
+    protected function executeCurl(array $options): array
+    {
+        $handle = curl_init();
+        curl_setopt_array($handle, $options);
+
+        $response = curl_exec($handle);
+        $errno = curl_errno($handle);
+        $error = curl_error($handle);
+        $info = curl_getinfo($handle) ?: [];
         curl_close($handle);
 
-        if ($error) {
-            throw new Exception($error);
+        if ($errno !== 0) {
+            $method = $options[CURLOPT_CUSTOMREQUEST] ?? (isset($options[CURLOPT_POST]) ? 'POST' : 'GET');
+
+            throw new RequestException($errno, $error, (string) $method, (string) $options[CURLOPT_URL]);
         }
 
-        // Split the full response in its headers and body
-        $header_size = $info['header_size'];
-        $header      = substr($response, 0, $header_size);
-        $body        = substr($response, $header_size);
-
-        return new Response($info, $body, $header, $this->jsonOpts);
-    }
-
-    public function getFormattedHeaders($headers)
-    {
-        $formattedHeaders = [];
-
-        $combinedHeaders = array_change_key_case(array_merge($this->defaultHeaders, (array) $headers));
-
-        foreach ($combinedHeaders as $key => $val) {
-            $formattedHeaders[] = $this->getHeaderString($key, $val);
-        }
-
-        if (!array_key_exists('user-agent', $combinedHeaders)) {
-            $formattedHeaders[] = 'user-agent: ws-http/1.0';
-        }
-
-        if (!array_key_exists('expect', $combinedHeaders)) {
-            $formattedHeaders[] = 'expect:';
-        }
-        return $formattedHeaders;
-    }
-
-    private static function getArrayFromQuerystring($query)
-    {
-        $query = preg_replace_callback('/(?:^|(?<=&))[^=[]+/', function ($match) {
-            return bin2hex(urldecode($match[0]));
-        }, $query);
-
-        parse_str($query, $values);
-
-        return array_combine(array_map('hex2bin', array_keys($values)), $values);
+        return [$response === false ? '' : (string) $response, $info];
     }
 
     /**
-     * Ensure that a URL is encoded and safe to use with cURL
-     * @param  string $url URL to encode
-     * @return string
+     * 按 header_size 切分并构造 Response(design/11 §1.4 流程 6–7)。
+     *
+     * @param array<string, mixed> $info
+     * @param array{0: bool, 1: int, 2: int} $jsonOpts
      */
-    private static function encodeUrl($url)
+    protected function buildResponse($rawResponse, array $info, array $jsonOpts, string $method, string $url): Response
     {
-        $url_parsed = parse_url($url);
+        $raw = (string) $rawResponse;
+        $headerSize = (int) ($info['header_size'] ?? 0);
 
-        $scheme = $url_parsed['scheme'] . '://';
-        $host   = $url_parsed['host'];
-        $port   = (isset($url_parsed['port']) ? $url_parsed['port'] : null);
-        $path   = (isset($url_parsed['path']) ? $url_parsed['path'] : null);
-        $query  = (isset($url_parsed['query']) ? $url_parsed['query'] : null);
+        $rawHeaders = $headerSize > 0 ? substr($raw, 0, $headerSize) : '';
+        $rawBody = $headerSize > 0 ? substr($raw, $headerSize) : $raw;
 
-        if ($query !== null) {
-            $query = '?' . http_build_query(self::getArrayFromQuerystring($query));
-        }
-
-        if ($port && $port[0] !== ':') {
-            $port = ':' . $port;
-        }
-
-        $result = $scheme . $host . $port . $path . $query;
-        return $result;
-    }
-
-    private static function getHeaderString($key, $val)
-    {
-        $key = trim(strtolower($key));
-        return $key . ': ' . $val;
+        return new Response($info, $rawBody, $rawHeaders, $jsonOpts);
     }
 
     /**
-     * @param array $existing_options
-     * @param array $new_options
-     * @return array
+     * 合并默认头 + 本次头,输出小写名头行(设计 11 §1.6)。
+     * 未显式设置时补 user-agent 与空 expect。
+     *
+     * @param array<string, string> $headers
+     * @return string[]
      */
-    private static function mergeCurlOptions(&$existing_options, $new_options)
+    protected function formatHeaders(array $headers): array
     {
-        $existing_options = $new_options + $existing_options;
-        return $existing_options;
+        $bag = clone $this->options->defaultHeaders();
+        foreach ($headers as $name => $value) {
+            $bag->set($name, (string) $value);
+        }
+
+        if (!$bag->has('user-agent')) {
+            $bag->set('user-agent', 'ws-http/2.0');
+        }
+        if (!$bag->has('expect')) {
+            $bag->set('expect', '');
+        }
+
+        return $bag->toCurlHeaders();
+    }
+
+    /**
+     * PreparedBody 的建议 Content-Type 应用规则:用户显式头优先。
+     *
+     * @param array<string, string> $headers
+     * @return array<string, string>
+     */
+    private function applyContentType(?string $contentType, array $headers): array
+    {
+        if ($contentType === null) {
+            return $headers;
+        }
+
+        foreach ($headers as $name => $_) {
+            if (strcasecmp($name, 'Content-Type') === 0) {
+                return $headers; // 用户显式指定,优先(design/11 §5)
+            }
+        }
+
+        $headers['Content-Type'] = $contentType;
+
+        return $headers;
     }
 }

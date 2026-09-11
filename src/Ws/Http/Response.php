@@ -1,82 +1,99 @@
-<?php namespace Ws\Http;
+<?php
 
-class Response
+declare(strict_types=1);
+
+namespace Ws\Http;
+
+/**
+ * HTTP 响应对象(design/11 §3)。
+ *
+ * $body 仅当 Content-Type 含 application/json 且 json_decode 成功时填充(遵循 jsonOpts);
+ * 解析失败时 $body = false 且 $jsonError 记录 [errno, message]。
+ */
+final class Response
 {
+    /** @var int HTTP 状态码 */
     public $code;
-    public $curl_info;
-    public $raw_body;
-    public $body = false;
+
+    /** @var string 状态行,如 "HTTP/1.1 200 OK" */
+    public $statusLine;
+
+    /** @var HeaderBag 响应头(大小写不敏感) */
     public $headers;
 
+    /** @var string 原始响应体 */
+    public $rawBody;
+
+    /** @var array<string, mixed> curl_getinfo 全量 */
+    public $curlInfo;
+
+    /** @var mixed 解析后 body;非 JSON 或解析失败为 false(JSON null 字面量例外,见 jsonError) */
+    public $body = false;
+
+    /** @var array{0: int, 1: string}|null JSON 解析失败时的 [errno, message];成功或非 JSON 内容为 null */
+    public $jsonError;
+
     /**
-     * @param mixed $curl_info info of the cURL request
-     * @param string $raw_body the raw body of the cURL response
-     * @param string $headers raw header string from cURL response
-     * @param array $json_args arguments to pass to json_decode function
+     * @param array<string, mixed> $curlInfo
+     * @param array{0: bool, 1: int, 2: int} $jsonOpts [assoc, depth, options]
      */
-    public function __construct($curl_info, $raw_body, $headers, $json_args = [])
+    public function __construct(array $curlInfo, string $rawBody, string $rawHeaders, array $jsonOpts = [false, 512, 0])
     {
-        $this->code     = intval($curl_info['http_code']);
-        $this->headers  = $this->parseHeaders($headers);
-        $this->raw_body = $raw_body;
-        $this->curl_info     = $curl_info;
+        $this->code = (int) ($curlInfo['http_code'] ?? 0);
+        $this->curlInfo = $curlInfo;
+        $this->rawBody = $rawBody;
 
-        if (!empty($this->headers['Content-Type']))
-        {
-            $ct = trim($this->headers['Content-Type']);
-            if ( false !== stripos($ct, 'application/json') )
-            {
-                // make sure raw_body is the first argument
-                array_unshift($json_args, $raw_body);
+        $this->headers = HeaderBag::fromRawHeaders($rawHeaders);
+        $this->statusLine = $this->extractStatusLine($rawHeaders);
 
-                $json = call_user_func_array('json_decode', $json_args);
+        $contentType = $this->headers->get('Content-Type');
 
-                if (json_last_error() === JSON_ERROR_NONE) {
-                    $this->body = $json;
-                }
+        if ($contentType !== null && stripos($contentType, 'application/json') !== false) {
+            [$assoc, $depth, $options] = $jsonOpts;
+
+            $decoded = json_decode($rawBody, $assoc, $depth, $options);
+
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $this->body = $decoded;
+                $this->jsonError = null;
+            } else {
+                $this->body = false;
+                $this->jsonError = [json_last_error(), json_last_error_msg()];
             }
         }
     }
 
     /**
-     * if PECL_HTTP is not available use a fall back function
-     *
-     * thanks to ricardovermeltfoort@gmail.com
-     * http://php.net/manual/en/function.http-parse-headers.php#112986
-     * @param string $raw_headers raw headers
-     * @return array
+     * 2xx 判定(含 200/299 边界)。
      */
-    private function parseHeaders($raw_headers)
+    public function isOk(): bool
     {
-        if (function_exists('http_parse_headers')) {
-            return http_parse_headers($raw_headers);
-        } else {
-            $key = '';
-            $headers = [];
+        return $this->code >= 200 && $this->code < 300;
+    }
 
-            foreach (explode("\n", $raw_headers) as $i => $h) {
-                $h = explode(':', $h, 2);
+    /**
+     * 大小写不敏感取响应头;缺失返回 null。
+     */
+    public function header(string $name): ?string
+    {
+        return $this->headers->get($name);
+    }
 
-                if (isset($h[1])) {
-                    if (!isset($headers[$h[0]])) {
-                        $headers[$h[0]] = trim($h[1]);
-                    } elseif (is_array($headers[$h[0]])) {
-                        $headers[$h[0]] = array_merge($headers[$h[0]], [trim($h[1])]);
-                    } else {
-                        $headers[$h[0]] = array_merge([$headers[$h[0]]], [trim($h[1])]);
-                    }
+    /**
+     * 请求总耗时(秒,curl_info['total_time']),断言器使用。
+     */
+    public function totalTime(): float
+    {
+        return (float) ($this->curlInfo['total_time'] ?? 0.0);
+    }
 
-                    $key = $h[0];
-                } else {
-                    if (substr($h[0], 0, 1) == "\t") {
-                        $headers[$key] .= "\r\n\t".trim($h[0]);
-                    } elseif (!$key) {
-                        $headers[0] = trim($h[0]);
-                    }
-                }
-            }
+    /**
+     * 从原始头块提取状态行(首行,如 "HTTP/1.1 200 OK")。
+     */
+    private function extractStatusLine(string $rawHeaders): string
+    {
+        $first = strtok($rawHeaders, "\r\n");
 
-            return $headers;
-        }
+        return $first === false ? '' : $first;
     }
 }
