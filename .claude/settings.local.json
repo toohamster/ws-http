@@ -17,9 +17,12 @@
   "permissions": {
     "allow": [
       "Bash(/usr/local/bin/php74 vendor/bin/phpunit --testsuite Unit 2>&1 | grep -B2 -A18 'failures 2\\\\|2\\) '| head -40)",
-      "Bash(/usr/local/bin/php74 vendor/bin/phpunit --testsuite Unit 2>&1 | tail -5)"
+      "Bash(/usr/local/bin/php74 vendor/bin/phpunit --testsuite Unit 2>&1 | tail -5)",
+      "Bash(/usr/local/bin/php74 vendor/bin/phpunit --testsuite Unit 2>&1 | grep -A6 '1\\) ' | head -12)",
+      "Bash(/usr/local/bin/php74 vendor/bin/phpunit --testsuite Unit 2>&1 | tail -6)",
+      "Bash(/usr/local/bin/php74 vendor/bin/phpunit --testsuite Unit 2>&1)"
     ]
   },
-  "model12": "baidu-glm-5.3-flash[1m]",
-  "model": "csdn-glm-5.3-flash[1m]"
+  "model": "csdn-glm-5.3-flash[1m]",
+  "model12": "baidu-glm-5.3-flash[1m]"
 }
