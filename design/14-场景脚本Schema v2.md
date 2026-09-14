@@ -40,7 +40,8 @@
   },
   "variables": [                           // 可选,变量初始值(design/15)
     { "name": "city",   "value": "440100" },
-    { "name": "searchKtvName", "value": "金柜" }
+    { "name": "username", "value": "testuser" },
+    { "name": "password", "value": "secret", "secret": true }   // secret=true:报告脱敏(design/16 §3.3)
   ],
   "steps": [ /* Step[], 见 §3 */ ]
 }
@@ -210,7 +211,7 @@ timeout 为 0 或负数拒绝(修复 v1 静默回退 30s 的隐式行为——v2
 | V5 | method ∈ Method 常量;method 与 body.mode 合法组合(§2.1 表) | 402/404 |
 | V6 | 时间字符串格式合法且在限额内 | 402 |
 | V7 | proxy.type ∈ 枚举;port ∈ [1,65535];auth.type ∈ 枚举 | 402 |
-| V8 | variables[].name 唯一且合法(设计/15 §2 命名规则) | 402 |
+| V8 | variables[].name 唯一且合法(设计/15 §2 命名规则);variables[].secret 为可选 bool(默认 false,声明后报告脱敏 design/16 §3.3) | 402 |
 | V9 | 全部 assertions 的 json 路径、全部 extract 的 json 路径通过 `ExpressionEvaluator::validate()`(提前暴露脚本错误) | 402 |
 | V10 | extract[].var 引用的变量名必须已声明(variables 或前置步骤 extract)——**保守策略:加载期不校验跨步骤引用,运行期未声明变量按 design/15 §4 处理** | — |
 | V11 | extract[].source=template 时,path 模式串必须含至少一个 `{name}` 占位符(纯字面量模式是配置错误) | 402 |

@@ -58,14 +58,15 @@ ws-http 是 cURL HTTP 客户端库,重构目标架构(见 design/10):
 | design/17 | plugin:三件套(认证+端点+语义化方法)、4 类型注册机制、内建样例 |
 | design/20 | 实施总计划:S1–S11 步骤与 Done 标准 |
 
-## 项目当前状态(S7 已完成,2026-09-11)
+## 项目当前状态(S7.5 已完成,2026-09-14)
 
-- **S1–S7 完成**:Unit 184 tests 464 assertions 全绿;git tags:alpha.0-core / alpha.1-expression / alpha.2-template / alpha.3-assert;每步提交用 `git add .`(用户要求,防遗漏)
-- S7 交付:Assert 层(Watcher 流式/AssertionRunner 收集式/Comparison 操作符注册表 15 内建+自定义注册/Assertion/AssertionResult/AssertionException 301–305/Contract\ComparatorInterface)
-- 关键语义:looseEquals 对象→数组归一(PHP 的 stdClass == array 恒 false,递归 looseNormalize);eq 数值化("200"↔200);Watcher collect() 期间失败记录不抛(collectMode 标志),退出恢复;json_root source 取 Response->body 整体
-- 测试注意:测试文件里异常 FQ 引用不能用 `Exception\AssertionException` 相对形态(use 导入的类名 Exception 会解析成 Ws\Http\Exception 前缀)——用 use 导入具体异常类
-- S6.5 已落:StrKit({name} 模板提取,template source 的 core 实现,修了空结束分隔符吞字 bug)
-- 约定:不可变 = private typed property + 访问器;接口不能有方法体;测试替身不用匿名类;诊断输出一次拿全
+- **S1–S7.5 完成**:Unit 195 tests 486 assertions 全绿;git tags:alpha.0-core / alpha.1-expression / alpha.2-template / alpha.3-assert / alpha.4-extension;每步提交 `git add .`(用户要求)
+- S7.5 交付:Support\ResultSet(通用结果容器,passed()/failed()/filter()/toArray();AssertionRunner::run 返回它)、Contract\FnComparator(闭包包装,用户函数一行接入)、Extension vs Plugin 边界定界(design/12 §2.1:Extension=功能原子注入,Plugin=三方系统适配;表达式文法不开放注入,非 JSON 经 source 层扩展——design/13)
+- S7 交付:Assert 层(Watcher 流式/AssertionRunner 收集式/Comparison 注册表 15 内建/AssertionException 301–305/ComparatorInterface)
+- 关键语义:looseEquals 对象→数组归一(stdClass == array 恒 false);eq 数值化("200"↔200);Watcher collect() 失败不抛(collectMode);ResultSet 项必须是带 toArray() 的对象
+- 测试注意:测试文件异常引用用 use 导入具体类(Exception\AssertionException 相对形态会解析错前缀);Comparison::resetForTest() 供测试清注册表
+- S6.5:StrKit({name} 模板提取,template source core 实现)
+- 约定:不可变 = private typed property + 访问器;接口不能有方法体;测试替身不用匿名类;诊断输出一次拿全;Extension 机制最小化(无前缀/版本协商/钩子)
 
 ## 用户偏好
 
