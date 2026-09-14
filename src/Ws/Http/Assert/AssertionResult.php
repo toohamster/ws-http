@@ -31,4 +31,20 @@ final class AssertionResult
         $this->message = $message;
         $this->actual = $actual;
     }
+
+    /**
+     * 报告/CLI 渲染形态(design/16 §3.2 assertions 数组元素契约)。
+     */
+    public function toArray(): array
+    {
+        return [
+            'source'   => $this->assertion->source,
+            'path'     => $this->assertion->path,
+            'op'       => $this->assertion->op,
+            'expected' => $this->assertion->expected,
+            'actual'   => $this->actual,
+            'passed'   => $this->passed,
+            'message'  => $this->message,
+        ];
+    }
 }

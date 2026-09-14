@@ -1,0 +1,57 @@
+{
+  "$schema": "ws-http/scenario-v2",
+  "id": "scenario-yedian-001",
+  "name": "夜点娱乐-预订流程",
+  "settings": { "timeout": "15s", "failFast": true, "cookieStore": "memory" },
+  "variables": [
+    { "name": "city", "value": "440100" },
+    { "name": "searchKtvName", "value": "金柜" }
+  ],
+  "steps": [
+    {
+      "type": "http", "id": "login", "name": "微信用户登录获取 token",
+      "url": "http://api.example.com/user/oauthlogin",
+      "method": "POST",
+      "headers": {
+        "X-KTV-Vendor-Name": "1d55af1659424cf94d869e2580a11bf8",
+        "X-KTV-Application-Platform": "1",
+        "X-KTV-Application-Name": "eec607d1f47c18c9160634fd0954da1a"
+      },
+      "body": { "mode": "json", "content": "{\"type\":\"wechat\",\"openid\":\"demo-openid-001\"}" },
+      "extract": [
+        { "var": "token", "source": "json", "path": "$.token" },
+        { "var": "loginCookie", "source": "header", "path": "Set-Cookie" }
+      ]
+    },
+    {
+      "type": "http", "id": "userinfo", "name": "根据 token 获取用户信息",
+      "url": "http://api.example.com/user/info",
+      "method": "GET",
+      "headers": { "X-KTV-User-Token": "${token}" },
+      "assertions": [
+        { "source": "status", "op": "eq", "expected": 200 },
+        { "source": "json", "path": "$.result", "op": "eq", "expected": 0 }
+      ]
+    },
+    {
+      "type": "http", "id": "search", "name": "按名称搜索 KTV",
+      "url": "http://api.example.com/booking/xktvsearchlist?offset=0&city=${city}&limit=27&name=${searchKtvName}",
+      "method": "GET",
+      "headers": { "X-KTV-User-Token": "${token}" },
+      "extract": [ { "var": "ktvId", "source": "json", "path": "$.list[0].xktvid" } ],
+      "assertions": [
+        { "source": "status", "op": "eq", "expected": 200 },
+        { "source": "json", "path": "$.total", "op": "gt", "expected": 0 }
+      ]
+    },
+    { "type": "delay", "id": "wait", "name": "等待", "duration": "0.01s" },
+    {
+      "type": "http", "id": "submit", "name": "提交订单",
+      "url": "http://api.example.com/booking/submitorder_new",
+      "method": "POST",
+      "headers": { "X-KTV-User-Token": "${token}", "cookie": "${loginCookie}" },
+      "body": { "mode": "json", "content": "{\"ktvid\":\"${ktvId}\",\"couponid\":0}" },
+      "assertions": [ { "source": "status", "op" : "eq", "expected": 200 } ]
+    }
+  ]
+}

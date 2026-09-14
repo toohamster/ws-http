@@ -58,15 +58,15 @@ ws-http 是 cURL HTTP 客户端库,重构目标架构(见 design/10):
 | design/17 | plugin:三件套(认证+端点+语义化方法)、4 类型注册机制、内建样例 |
 | design/20 | 实施总计划:S1–S11 步骤与 Done 标准 |
 
-## 项目当前状态(S7.5 已完成,2026-09-14)
+## 项目当前状态(S8 已完成,2026-09-14)
 
-- **S1–S7.5 完成**:Unit 195 tests 486 assertions 全绿;git tags:alpha.0-core / alpha.1-expression / alpha.2-template / alpha.3-assert / alpha.4-extension;每步提交 `git add .`(用户要求)
-- S7.5 交付:Support\ResultSet(通用结果容器,passed()/failed()/filter()/toArray();AssertionRunner::run 返回它)、Contract\FnComparator(闭包包装,用户函数一行接入)、Extension vs Plugin 边界定界(design/12 §2.1:Extension=功能原子注入,Plugin=三方系统适配;表达式文法不开放注入,非 JSON 经 source 层扩展——design/13)
-- S7 交付:Assert 层(Watcher 流式/AssertionRunner 收集式/Comparison 注册表 15 内建/AssertionException 301–305/ComparatorInterface)
-- 关键语义:looseEquals 对象→数组归一(stdClass == array 恒 false);eq 数值化("200"↔200);Watcher collect() 失败不抛(collectMode);ResultSet 项必须是带 toArray() 的对象
-- 测试注意:测试文件异常引用用 use 导入具体类(Exception\AssertionException 相对形态会解析错前缀);Comparison::resetForTest() 供测试清注册表
-- S6.5:StrKit({name} 模板提取,template source core 实现)
-- 约定:不可变 = private typed property + 访问器;接口不能有方法体;测试替身不用匿名类;诊断输出一次拿全;Extension 机制最小化(无前缀/版本协商/钩子)
+- **S1–S8 完成**:Unit 237 tests 560 assertions 全绿;git tags:alpha.0-core … alpha.5-variables;每步提交 `git add .`(用户要求)
+- S8 交付:VariableScope(secret 标记:按变量名绑定、覆盖保持、markSecret 运行期)、ScenarioResolver(${var} 深替换,类型保留/嵌入 JSON/未定义抛错)、VarExtractor(source 注册表 + 六内建,multiple 语义在 source 层,json=first/all header=拼接/数组 template=首字段/全映射)、Redactor(secret 值报告脱敏)、Contract\ExtractorInterface+ExtractionOutcome
+- secret 契约:design/15 §2.1.1 + design/16 §3.3;输出层脱敏不影响执行语义;S9 Report 消费(Redactor.apply + scope->secrets())
+- 关键语义:looseEquals 对象→数组归一(stdClass == array 恒 false);eq 数值化("200"↔200);Watcher collect() 失败不抛;ResultSet 项必须带 toArray();json_root source 取 Response->body
+- 测试注意:异常引用用 use 导入具体类;Comparison/VarExtractor::resetForTest() 供测试清注册表
+- S6.5:StrKit({name} 模板提取);S7.5:ResultSet + FnComparator + Extension 边界定界
+- 约定:不可变 = private typed property + 访问器;接口不能有方法体;测试替身不用匿名类;诊断输出一次拿全;Extension 机制最小化
 
 ## 用户偏好
 
