@@ -58,13 +58,14 @@ ws-http 是 cURL HTTP 客户端库,重构目标架构(见 design/10):
 | design/17 | plugin:三件套(认证+端点+语义化方法)、4 类型注册机制、内建样例 |
 | design/20 | 实施总计划:S1–S11 步骤与 Done 标准 |
 
-## 项目当前状态(S6 已完成,2026-09-11)
+## 项目当前状态(S7 已完成,2026-09-11)
 
-- **S1–S6 完成**:Unit 130 tests 332 assertions 全绿;Integration 10 tests 全绿;git tag `v2.0.0-alpha.0-core`(core 层里程碑已提交)
-- S6 交付:Expression 引擎(src/Ws/Http/Expression/:Lexer/Parser/Token/EvaluationResult/ExpressionEvaluator/ExpressionException)——JSONPath 子集全量(点路径/索引/负索引/切片/联合/通配/filter/existence/正则/引号键/UTF-8 键),宽容求值,memoize
-- 设计语义要点:member 返回节点本身(整个数组=1 个节点),元素级用 `[*]`;all() 经 array_values 重排,断言用内容而非原始下标;filter 数值比较要求两侧可数值化否则无匹配(宽容)
-- Lexer 字符集:identifier 含 `\x80-\xFF`(UTF-8 键);`-` 数字负号;`/.../` 正则字面量
-- 约定:不可变 = private typed property + 访问器;接口不能有方法体(静态逻辑放 Helper 类);测试替身不用匿名类(见 debugging.md)
+- **S1–S7 完成**:Unit 184 tests 464 assertions 全绿;git tags:alpha.0-core / alpha.1-expression / alpha.2-template / alpha.3-assert;每步提交用 `git add .`(用户要求,防遗漏)
+- S7 交付:Assert 层(Watcher 流式/AssertionRunner 收集式/Comparison 操作符注册表 15 内建+自定义注册/Assertion/AssertionResult/AssertionException 301–305/Contract\ComparatorInterface)
+- 关键语义:looseEquals 对象→数组归一(PHP 的 stdClass == array 恒 false,递归 looseNormalize);eq 数值化("200"↔200);Watcher collect() 期间失败记录不抛(collectMode 标志),退出恢复;json_root source 取 Response->body 整体
+- 测试注意:测试文件里异常 FQ 引用不能用 `Exception\AssertionException` 相对形态(use 导入的类名 Exception 会解析成 Ws\Http\Exception 前缀)——用 use 导入具体异常类
+- S6.5 已落:StrKit({name} 模板提取,template source 的 core 实现,修了空结束分隔符吞字 bug)
+- 约定:不可变 = private typed property + 访问器;接口不能有方法体;测试替身不用匿名类;诊断输出一次拿全
 
 ## 用户偏好
 

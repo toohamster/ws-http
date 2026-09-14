@@ -6,6 +6,7 @@ namespace Ws\Http\Assert;
 
 use Ws\Http\Expression\ExpressionEvaluator;
 use Ws\Http\Response;
+use Ws\Http\Support\ResultSet;
 
 /**
  * 收集式断言执行器(design/12 §5):L3 自动化引擎使用。
@@ -46,12 +47,22 @@ final class AssertionRunner
     }
 
     /**
-     * 全量执行;返回按序结果(不短路)。
+     * 全量执行;返回 ResultSet(消费方:CLI/报告;S7.5 统一容器)。
+     *
+     * @param Assertion[] $assertions
+     */
+    public function run(Response $response, array $assertions): ResultSet
+    {
+        return new ResultSet($this->runAll($response, $assertions));
+    }
+
+    /**
+     * 裸数组形态(内部/测试用)。
      *
      * @param Assertion[] $assertions
      * @return AssertionResult[]
      */
-    public function run(Response $response, array $assertions): array
+    public function runAll(Response $response, array $assertions): array
     {
         $results = [];
         foreach ($assertions as $assertion) {

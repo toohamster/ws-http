@@ -27,7 +27,16 @@ final class Comparison
      */
     public static function register(string $op, ComparatorInterface $impl): void
     {
+        self::bootBuiltins();
         self::$registry[$op] = $impl;
+    }
+
+    /**
+     * 仅测试用:清空注册表(内建项会在下次 compare/register 时重建)。
+     */
+    public static function resetForTest(): void
+    {
+        self::$registry = [];
     }
 
     /**

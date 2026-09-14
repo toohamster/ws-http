@@ -38,12 +38,12 @@ final class AssertionRunnerTest extends TestCase
         $results = (new AssertionRunner())->run($response, $assertions);
 
         self::assertCount(4, $results, '不短路,全部执行');
-        self::assertTrue($results[0]->passed);
-        self::assertTrue($results[1]->passed);
-        self::assertFalse($results[2]->passed);
-        self::assertFalse($results[3]->passed);
-        self::assertStringContainsString('$.total', $results[2]->message);
-        self::assertStringContainsString('X-Missing', $results[3]->message);
+        self::assertTrue($results->all()[0]->passed);
+        self::assertTrue($results->all()[1]->passed);
+        self::assertFalse($results->all()[2]->passed);
+        self::assertFalse($results->all()[3]->passed);
+        self::assertStringContainsString('$.total', $results->all()[2]->message);
+        self::assertStringContainsString('X-Missing', $results->all()[3]->message);
     }
 
     public function testRunnerCarriesActualValueOnFailure(): void
@@ -54,8 +54,8 @@ final class AssertionRunnerTest extends TestCase
 
         $results = (new AssertionRunner())->run($this->response(), $assertions);
 
-        self::assertFalse($results[0]->passed);
-        self::assertSame(2, $results[0]->actual);
+        self::assertFalse($results->all()[0]->passed);
+        self::assertSame(2, $results->all()[0]->actual);
     }
 
     public function testRunnerJsonPathNoMatchIsFailure(): void
@@ -66,8 +66,8 @@ final class AssertionRunnerTest extends TestCase
 
         $results = (new AssertionRunner())->run($this->response(), $assertions);
 
-        self::assertFalse($results[0]->passed);
-        self::assertStringContainsString('$.missing', $results[0]->message);
+        self::assertFalse($results->all()[0]->passed);
+        self::assertStringContainsString('$.missing', $results->all()[0]->message);
     }
 
     public function testRunnerStatusAndTimeSources(): void
@@ -80,9 +80,9 @@ final class AssertionRunnerTest extends TestCase
 
         $results = (new AssertionRunner())->run($this->response(), $assertions);
 
-        self::assertTrue($results[0]->passed, 'status 200 vs "200" 数值化');
-        self::assertTrue($results[1]->passed, 'time 0.42 < 1');
-        self::assertTrue($results[2]->passed, 'raw_body contains');
+        self::assertTrue($results->all()[0]->passed, 'status 200 vs "200" 数值化');
+        self::assertTrue($results->all()[1]->passed, 'time 0.42 < 1');
+        self::assertTrue($results->all()[2]->passed, 'raw_body contains');
     }
 
     public function testRunnerHeaderCaseInsensitive(): void
@@ -93,7 +93,7 @@ final class AssertionRunnerTest extends TestCase
 
         $results = (new AssertionRunner())->run($this->response(), $assertions);
 
-        self::assertTrue($results[0]->passed, '头名大小写不敏感(修复 B8)');
+        self::assertTrue($results->all()[0]->passed, '头名大小写不敏感(修复 B8)');
     }
 
     public function testRunnerSupportsName(): void
@@ -104,7 +104,7 @@ final class AssertionRunnerTest extends TestCase
 
         $results = (new AssertionRunner())->run($this->response(), $assertions);
 
-        self::assertStringContainsString('登录后状态必须失败', $results[0]->message);
+        self::assertStringContainsString('登录后状态必须失败', $results->all()[0]->message);
     }
 
     // ---------- Watcher:流式(失败即抛) ----------
