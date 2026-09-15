@@ -1,0 +1,31 @@
+{
+  "$schema": "ws-http/scenario-v2",
+  "id": "example-booking",
+  "name": "预订流程示例(结构演示)",
+  "settings": { "timeout": "10s", "failFast": true, "cookieStore": "memory" },
+  "variables": [
+    { "name": "city", "value": "440100" },
+    { "name": "searchKtvName", "value": "金柜" }
+  ],
+  "steps": [
+    {
+      "type": "http", "id": "search", "name": "按名称搜索 KTV",
+      "url": "http://127.0.0.1:1/unreachable-search?city=${city}&name=${searchKtvName}",
+      "method": "GET",
+      "timeout": "2s",
+      "extract": [ { "var": "ktvId", "source": "json", "path": "$.list[0].xktvid", "onMissing": "default", "defaultValue": "fallback-ktv" } ],
+      "assertions": [
+        { "source": "status", "op": "eq", "expected": 200 }
+      ]
+    },
+    { "type": "delay", "id": "wait", "name": "等待", "duration": "0.01s" },
+    {
+      "type": "http", "id": "submit", "name": "提交订单(演示 extract default 兜底)",
+      "url": "http://127.0.0.1:1/unreachable-submit",
+      "method": "POST",
+      "timeout": "2s",
+      "headers": { "X-Ktv": "${ktvId}" },
+      "body": { "mode": "json", "content": "{\"ktvid\":\"${ktvId}\"}" }
+    }
+  ]
+}

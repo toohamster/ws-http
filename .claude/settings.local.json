@@ -22,7 +22,9 @@
       "Bash(/usr/local/bin/php74 vendor/bin/phpunit --testsuite Unit 2>&1 | grep -A6 '1\\) ' | head -12)",
       "Bash(/usr/local/bin/php74 vendor/bin/phpunit --testsuite Unit 2>&1 | tail -6)",
       "Bash(/usr/local/bin/php74 vendor/bin/phpunit --testsuite Unit 2>&1)",
-      "Bash(/usr/local/bin/php74 vendor/bin/phpunit --testsuite Engine 2>&1 | grep -m2 -A6 '^[0-9]\\) ')"
+      "Bash(/usr/local/bin/php74 vendor/bin/phpunit --testsuite Engine 2>&1 | grep -m2 -A6 '^[0-9]\\) ')",
+      "Bash(/usr/local/bin/php74 examples/httpbin-quick/run.php 2>&1)",
+      "Bash(/usr/local/bin/php74 examples/scenario/run.php 2>&1)"
     ]
   },
   "env123": {

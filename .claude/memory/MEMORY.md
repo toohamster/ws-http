@@ -58,15 +58,15 @@ ws-http 是 cURL HTTP 客户端库,重构目标架构(见 design/10):
 | design/17 | plugin:三件套(认证+端点+语义化方法)、4 类型注册机制、内建样例 |
 | design/20 | 实施总计划:S1–S11 步骤与 Done 标准 |
 
-## 项目当前状态(S9 已完成,2026-09-14)
+## 项目当前状态(S10 已完成,2026-09-15)
 
-- **S1–S9 完成,functional 层全部落地**:Unit 266 tests 633 assertions + Engine 16 tests 全绿;tags:alpha.0-core … alpha.6-engine;每步提交 `git add .`
-- S9 交付:ScenarioParser(V1–V11 全校验,$schema 字段放行)、Scenario/HttpStep/DelayStep、Runner(resolve→send→extract→assert→判定;failFast/skipped;三级配置合并;secret→Redactor 接入 Report/StepResult)、Report(toArray JSON 契约)、MemoryCookieStore(主机级 jar+过期)、AssertionResult::toArray、Contract\RequestFactoryInterface+CookieStoreInterface
-- Engine 测试:FakeRequestFactory/SealedRequest 替身(tests/Engine/)+ booking-flow.json fixture(design/14 §6 夜点场景端到端,含 B4 回归)
-- **坑位**:Contract 接口 namespace 必须是 Ws\Http\Contract(曾误写 Automated 导致 dual-declare);测试私有 helper 不能叫 expectError(TestCase 已占);PHPUnit 输出整跑不截断;步数≠请求数(delay 不发请求,sent 索引别错位)
-- Integration(httpbin)本机偶发 SSL error 35(LibreSSL/network)——CI 可 skip,本地网络恢复再跑
-- S8 交付(上轮):VariableScope(secret 标记)、ScenarioResolver、VarExtractor(六 source)、Redactor
-- 约定:不可变 = private typed property + 访问器;接口不能有方法体;测试替身不用匿名类;Extension 机制最小化
+- **S1–S10 完成,功能开发全部结束**:Unit 288 tests 680 assertions + Engine 16 全绿;tags:alpha.0-core … alpha.7-cli-plugin
+- S10 交付:bin/ws-http(run 命令,退出码 0/1/2,--format/--report-out/--no-fail-fast/--var=name=value/--stop-on-parse-error)、Contract PluginInterface/PluginContext/AuthProviderInterface、PluginRegistry(bootDefaults 幂等/重名 501/未知 auth 502)、OpenAI plugin(Bearer + chat/models)、WordPress plugin(ApplicationPassword=Basic + posts/media + isWpError)、隔离性测试(core/functional 不引用 Plugin ns)、RequestFactory 默认实现
+- CLI 测试要点:进程级 exec 验证退出码;--var 只支持 --var=name=value 单参形态(空格形态在脚本内不可拆分,文档写清楚);CLI 成功用例用 delay-only 场景(无网络依赖)
+- Plugin 坑位:endpoint 类里箭头函数不能捕获 $this 用 static fn(static fn 无 $this 绑定,改普通闭包或方法);替身响应必须带 Content-Type 头才会触发 JSON 解析(body 才非 false)
+- S9 坑位:Contract 接口 namespace 必须 Ws\Http\Contract;测试 helper 不与 TestCase::expectError 撞名;Integration httpbin 本机偶发 SSL error 35(CI skip)
+- 约定:不可变 = private typed property + 访问器;接口不能有方法体;测试替身不用匿名类(替身请求类例外:SealedRequest/匿名工厂是功能性替身);Extension 机制最小化
+- **下一步 S11(收尾)**:PHPStan≥6、README 重写、CHANGELOG、删 legacy/、tag 2.0.0-alpha.1 正式版(仅本地)
 
 ## 用户偏好
 

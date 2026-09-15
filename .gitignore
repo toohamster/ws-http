@@ -6,3 +6,5 @@ composer.lock
 Thumbs.db
 .phpunit.result.cache
 .claude/settings.local.json
+config.php
+config.php
