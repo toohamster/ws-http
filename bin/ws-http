@@ -1,0 +1,270 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * ws-http CLI(design/16 §5):场景执行入口。
+ *
+ * 用法:
+ *   php bin/ws-http run <script.json...> [options]
+ *
+ * 选项:
+ *   --format=text|json     报告格式,默认 text
+ *   --report-out=<file>    报告写入文件(默认 stdout)
+ *   --no-fail-fast         覆盖场景 failFast=false
+ *   --var name=value       覆盖/追加初始变量(可重复;优先级高于脚本 variables)
+ *   --stop-on-parse-error  多脚本时遇解析错误立即退出(默认继续)
+ *
+ * 退出码:0 = 全部场景 success;1 = 任一场景存在 failed;2 = 解析错误
+ */
+
+use Ws\Http\Automated\AutomatedException;
+use Ws\Http\Automated\Report;
+use Ws\Http\Automated\Runner;
+use Ws\Http\Automated\ScenarioParser;
+
+require __DIR__ . '/../vendor/autoload.php';
+
+exit((new WsHttpCli())->main($argv));
+
+/**
+ * CLI 主体(类形态便于测试注入;exit code 0/1/2 契约见文件头)。
+ */
+final class WsHttpCli
+{
+    private const EXIT_OK = 0;
+    private const EXIT_FAILED = 1;
+    private const EXIT_PARSE_ERROR = 2;
+
+    /** @var array<string, mixed> */
+    private $options = [
+        'format'            => 'text',
+        'reportOut'         => null,
+        'noFailFast'        => false,
+        'vars'              => [],
+        'stopOnParseError'  => false,
+    ];
+
+    /**
+     * @param string[] $argv
+     * @return int exit code
+     */
+    public function main(array $argv): int
+    {
+        array_shift($argv); // 程序名
+
+        // --- 解析参数 ---
+        $command = array_shift($argv);
+
+        if ($command === null || $command === 'help' || $command === '--help') {
+            $this->usage();
+
+            return self::EXIT_OK;
+        }
+
+        if ($command !== 'run') {
+            fwrite(STDERR, sprintf("Unknown command: %s\n\n", $command));
+            $this->usage();
+
+            return self::EXIT_PARSE_ERROR;
+        }
+
+        $scripts = [];
+        foreach ($argv as $arg) {
+            if (strpos($arg, '--') === 0) {
+                $error = $this->parseOption($arg);
+                if ($error !== null) {
+                    fwrite(STDERR, $error . "\n");
+
+                    return self::EXIT_PARSE_ERROR;
+                }
+                continue;
+            }
+            $scripts[] = $arg;
+        }
+
+        if ($scripts === []) {
+            fwrite(STDERR, "No scenario files given.\n\n");
+            $this->usage();
+
+            return self::EXIT_PARSE_ERROR;
+        }
+
+        // --- 逐脚本执行 ---
+        $parser = new ScenarioParser();
+        $anyFailed = false;
+        $anyParseError = false;
+
+        foreach ($scripts as $scriptPath) {
+            try {
+                $scenario = $parser->parseFile($scriptPath);
+            } catch (AutomatedException $e) {
+                fwrite(STDERR, sprintf("[parse] %s: %s\n", $scriptPath, $e->getMessage()));
+                $anyParseError = true;
+
+                if ($this->options['stopOnParseError']) {
+                    break;
+                }
+                continue;
+            }
+
+            // --var 覆盖(优先级高于脚本 variables)
+            foreach ($this->options['vars'] as $name => $value) {
+                foreach ($scenario->variables as $i => $variable) {
+                    if ($variable['name'] === $name) {
+                        unset($scenario->variables[$i]);
+                    }
+                }
+                $scenario->variables[] = ['name' => $name, 'value' => $value];
+            }
+            $scenario->variables = array_values($scenario->variables);
+
+            if ($this->options['noFailFast']) {
+                $scenario->settings['failFast'] = false;
+            }
+
+            $report = (new Runner(new \Ws\Http\Automated\RequestFactory()))->run($scenario);
+
+            if ($this->options['reportOut'] !== null) {
+                file_put_contents(
+                    (string) $this->options['reportOut'],
+                    json_encode($report->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n"
+                );
+            }
+
+            if ($this->options['format'] === 'json') {
+                echo json_encode($report->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), "\n";
+            } else {
+                $this->renderText($report);
+            }
+
+            if (!$report->isSuccess()) {
+                $anyFailed = true;
+            }
+        }
+
+        if ($anyParseError) {
+            return self::EXIT_PARSE_ERROR;
+        }
+
+        return $anyFailed ? self::EXIT_FAILED : self::EXIT_OK;
+    }
+
+    /**
+     * @return string|null 错误消息,null=成功
+     */
+    private function parseOption(string $arg): ?string
+    {
+        if ($arg === '--no-fail-fast') {
+            $this->options['noFailFast'] = true;
+            return null;
+        }
+
+        if ($arg === '--stop-on-parse-error') {
+            $this->options['stopOnParseError'] = true;
+            return null;
+        }
+
+        if ($arg === '--format=json' || $arg === '--format=text') {
+            $this->options['format'] = substr($arg, strlen('--format='));
+            return null;
+        }
+
+        if (strpos($arg, '--report-out=') === 0) {
+            $this->options['reportOut'] = substr($arg, strlen('--report-out='));
+            return null;
+        }
+
+        if (strpos($arg, '--var=') === 0) {
+            return $this->parseVar(substr($arg, strlen('--var=')));
+        }
+
+        if ($arg === '--var') {
+            return 'Missing value for --var (use --var name=value)';
+        }
+
+        return sprintf('Unknown option: %s', $arg);
+    }
+
+    /**
+     * @return string|null 错误消息,null=成功
+     */
+    private function parseVar(string $pair): ?string
+    {
+        $eq = strpos($pair, '=');
+        if ($eq === false || $eq === 0) {
+            return sprintf('Invalid --var (use name=value): %s', $pair);
+        }
+
+        $this->options['vars'][substr($pair, 0, $eq)] = substr($pair, $eq + 1);
+
+        return null;
+    }
+
+    private function renderText(Report $report): void
+    {
+        $lines = [];
+        $lines[] = sprintf('Scenario %s (%s)', $report->scenarioName, $report->scenarioId);
+
+        foreach ($report->steps() as $step) {
+            switch ($step->status) {
+                case \Ws\Http\Automated\StepResult::STATUS_PASSED:
+                    $mark = '✓';
+                    break;
+                case \Ws\Http\Automated\StepResult::STATUS_FAILED:
+                    $mark = '✗';
+                    break;
+                default:
+                    $mark = '-';
+            }
+
+            $line = sprintf(
+                '  %s %-10s %-28s %s  %sms',
+                $mark,
+                $step->stepId,
+                mb_substr($step->stepName, 0, 28),
+                $step->statusCode !== null ? (string) $step->statusCode : ($step->status === \Ws\Http\Automated\StepResult::STATUS_SKIPPED ? 'skipped' : ''),
+                $step->durationMs !== null ? number_format((float) $step->durationMs, 0) : '-'
+            );
+            $lines[] = $line;
+
+            if ($step->status === \Ws\Http\Automated\StepResult::STATUS_FAILED) {
+                foreach (explode("\n", (string) $step->failReason) as $reasonLine) {
+                    $lines[] = sprintf('       %s', $reasonLine);
+                }
+            }
+        }
+
+        $lines[] = '';
+        $lines[] = sprintf(
+            'Summary: %d passed, %d failed, %d skipped (%sms)',
+            $report->passedCount(),
+            $report->failedCount(),
+            $report->skippedCount(),
+            number_format($report->totalDurationMs(), 0)
+        );
+
+        echo implode("\n", $lines), "\n";
+    }
+
+    private function usage(): void
+    {
+        echo <<<USAGE
+ws-http scenario runner
+
+Usage:
+  php bin/ws-http run <script.json...> [options]
+
+Options:
+  --format=text|json     report format (default text)
+  --report-out=<file>    write JSON report to file
+  --no-fail-fast         continue after failed steps
+  --var name=value       override/append scenario variable (repeatable)
+  --stop-on-parse-error  abort on first parse error
+
+Exit codes: 0=all success, 1=failed steps, 2=parse error
+
+USAGE;
+    }
+}

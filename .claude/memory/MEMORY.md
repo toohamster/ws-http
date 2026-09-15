@@ -58,15 +58,15 @@ ws-http 是 cURL HTTP 客户端库,重构目标架构(见 design/10):
 | design/17 | plugin:三件套(认证+端点+语义化方法)、4 类型注册机制、内建样例 |
 | design/20 | 实施总计划:S1–S11 步骤与 Done 标准 |
 
-## 项目当前状态(S8 已完成,2026-09-14)
+## 项目当前状态(S9 已完成,2026-09-14)
 
-- **S1–S8 完成**:Unit 237 tests 560 assertions 全绿;git tags:alpha.0-core … alpha.5-variables;每步提交 `git add .`(用户要求)
-- S8 交付:VariableScope(secret 标记:按变量名绑定、覆盖保持、markSecret 运行期)、ScenarioResolver(${var} 深替换,类型保留/嵌入 JSON/未定义抛错)、VarExtractor(source 注册表 + 六内建,multiple 语义在 source 层,json=first/all header=拼接/数组 template=首字段/全映射)、Redactor(secret 值报告脱敏)、Contract\ExtractorInterface+ExtractionOutcome
-- secret 契约:design/15 §2.1.1 + design/16 §3.3;输出层脱敏不影响执行语义;S9 Report 消费(Redactor.apply + scope->secrets())
-- 关键语义:looseEquals 对象→数组归一(stdClass == array 恒 false);eq 数值化("200"↔200);Watcher collect() 失败不抛;ResultSet 项必须带 toArray();json_root source 取 Response->body
-- 测试注意:异常引用用 use 导入具体类;Comparison/VarExtractor::resetForTest() 供测试清注册表
-- S6.5:StrKit({name} 模板提取);S7.5:ResultSet + FnComparator + Extension 边界定界
-- 约定:不可变 = private typed property + 访问器;接口不能有方法体;测试替身不用匿名类;诊断输出一次拿全;Extension 机制最小化
+- **S1–S9 完成,functional 层全部落地**:Unit 266 tests 633 assertions + Engine 16 tests 全绿;tags:alpha.0-core … alpha.6-engine;每步提交 `git add .`
+- S9 交付:ScenarioParser(V1–V11 全校验,$schema 字段放行)、Scenario/HttpStep/DelayStep、Runner(resolve→send→extract→assert→判定;failFast/skipped;三级配置合并;secret→Redactor 接入 Report/StepResult)、Report(toArray JSON 契约)、MemoryCookieStore(主机级 jar+过期)、AssertionResult::toArray、Contract\RequestFactoryInterface+CookieStoreInterface
+- Engine 测试:FakeRequestFactory/SealedRequest 替身(tests/Engine/)+ booking-flow.json fixture(design/14 §6 夜点场景端到端,含 B4 回归)
+- **坑位**:Contract 接口 namespace 必须是 Ws\Http\Contract(曾误写 Automated 导致 dual-declare);测试私有 helper 不能叫 expectError(TestCase 已占);PHPUnit 输出整跑不截断;步数≠请求数(delay 不发请求,sent 索引别错位)
+- Integration(httpbin)本机偶发 SSL error 35(LibreSSL/network)——CI 可 skip,本地网络恢复再跑
+- S8 交付(上轮):VariableScope(secret 标记)、ScenarioResolver、VarExtractor(六 source)、Redactor
+- 约定:不可变 = private typed property + 访问器;接口不能有方法体;测试替身不用匿名类;Extension 机制最小化
 
 ## 用户偏好
 
