@@ -22,18 +22,23 @@ final class Redactor
      * 用真实值映射表脱敏任意输出值(递归数组/对象;字符串中出现的敏感值也替换)。
      *
      * @param mixed $output
-     * @param string[] $secretValues 真实敏感值列表
+     * @param mixed[] $secretValues 真实敏感值列表(仅字符串项生效,其余忽略)
      * @return mixed
      */
     public static function apply($output, array $secretValues)
     {
-        $secretValues = array_values(array_filter($secretValues, static fn ($v) => \is_string($v) && $v !== ''));
+        $stringSecrets = [];
+        foreach ($secretValues as $value) {
+            if (\is_string($value) && $value !== '') {
+                $stringSecrets[] = $value;
+            }
+        }
 
-        if ($secretValues === []) {
+        if ($stringSecrets === []) {
             return $output;
         }
 
-        return self::redact($output, $secretValues);
+        return self::redact($output, $stringSecrets);
     }
 
     /**

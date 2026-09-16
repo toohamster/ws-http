@@ -9,7 +9,7 @@ namespace Ws\Http\Expression;
  */
 final class Parser
 {
-    /** @var Token[] */
+    /** @var list<Token> */
     private $tokens;
 
     /** @var int */
@@ -58,7 +58,8 @@ final class Parser
         }
 
         // 裸 identifier 开头(如 "a.b",省略 $)→ 首个 member 步骤
-        if ($this->peekType() === Token::T_IDENTIFIER || $this->peekType() === Token::T_STRING) {
+        $type0 = $this->peekType();
+        if ($type0 === Token::T_IDENTIFIER || $type0 === Token::T_STRING) {
             $token = $this->consume();
             $steps[] = ['type' => 'member', 'name' => (string) $token->value, 'numeric' => false];
         }
@@ -172,17 +173,19 @@ final class Parser
         $end = null;
         $step = 1;
 
-        if ($this->peekType() === Token::T_NUMBER) {
+        $endType = $this->peekType();
+        if ($endType === Token::T_NUMBER) {
             $end = (int) $this->consume()->value;
         }
 
         if ($this->peekType() === Token::T_COLON) {
             $this->consume();
             if ($this->peekType() === Token::T_NUMBER) {
-                $step = (int) $this->consume()->value;
-                if ($step === 0) {
+                $stepValue = (int) $this->consume()->value;
+                if ($stepValue === 0) {
                     throw $this->error('slice step cannot be 0');
                 }
+                $step = $stepValue;
             }
         }
 
@@ -196,7 +199,6 @@ final class Parser
      */
     private function parseIndexToken(): int
     {
-        $negative = false;
         if ($this->peekType() === Token::T_STRING && is_numeric((string) $this->peekValue())) {
             // 引号包裹的数字(如 ["-1"] 少见,宽容处理)
             $value = (int) (string) $this->consume()->value;
@@ -226,14 +228,17 @@ final class Parser
         $path = [];
         while ($this->peekType() === Token::T_DOT) {
             $this->consume();
-            $type = $this->peekType();
-            if ($type !== Token::T_IDENTIFIER && $type !== Token::T_NUMBER) {
+            $segType = $this->peekType();
+            if ($segType === Token::T_IDENTIFIER) {
+                $path[] = (string) $this->consume()->value;
+            } elseif ($segType === Token::T_NUMBER) {
+                $path[] = (string) $this->consume()->value;
+            } else {
                 throw $this->error("expected member name in filter path");
             }
-            $path[] = (string) $this->consume()->value;
         }
 
-        if ($path === []) {
+        if (\count($path) === 0) {
             throw $this->error('filter path cannot be empty');
         }
 
@@ -308,6 +313,11 @@ final class Parser
         $this->consume();
     }
 
+    /**
+     * 当前 token 类型;末尾返回 null(@phpstan-impure:consume() 前移光标)。
+     *
+     * @phpstan-impure
+     */
     private function peekType(): ?string
     {
         return $this->atEnd() ? null : $this->tokens[$this->idx]->type;
@@ -321,6 +331,11 @@ final class Parser
         return $this->atEnd() ? null : $this->tokens[$this->idx]->value;
     }
 
+    /**
+     * 光标状态随 consume() 前移(有副作用),PHPStan 需显式标注非纯函数。
+     *
+     * @phpstan-impure
+     */
     private function atEnd(): bool
     {
         return $this->idx >= \count($this->tokens);

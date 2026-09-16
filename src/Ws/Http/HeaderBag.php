@@ -135,7 +135,7 @@ final class HeaderBag implements \IteratorAggregate, \Countable
         $lastName = null;
 
         foreach (preg_split('/\r\n|\r|\n/', $raw) ?: [] as $line) {
-            if ($line === '' || $line === false) {
+            if ($line === '') {
                 continue;
             }
 

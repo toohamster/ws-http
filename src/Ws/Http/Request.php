@@ -214,12 +214,18 @@ class Request
      */
     protected function executeCurl(array $options): array
     {
+        // curl_init 成功返回 resource(PHP 7.4)/ CurlHandle(PHP 8);false=初始化失败
         $handle = curl_init();
+        if ($handle === false) {
+            // curl_init 失败(极端资源耗尽场景);按传输错误处理
+            throw new RequestException(0, 'curl_init() failed', 'GET', (string) ($options[CURLOPT_URL] ?? ''));
+        }
         curl_setopt_array($handle, $options);
 
         $response = curl_exec($handle);
         $errno = curl_errno($handle);
         $error = curl_error($handle);
+        /** @var array<string, mixed> $info(curl_getinfo 在 exec 后恒返回数组) */
         $info = curl_getinfo($handle) ?: [];
         curl_close($handle);
 

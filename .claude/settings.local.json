@@ -24,7 +24,10 @@
       "Bash(/usr/local/bin/php74 vendor/bin/phpunit --testsuite Unit 2>&1)",
       "Bash(/usr/local/bin/php74 vendor/bin/phpunit --testsuite Engine 2>&1 | grep -m2 -A6 '^[0-9]\\) ')",
       "Bash(/usr/local/bin/php74 examples/httpbin-quick/run.php 2>&1)",
-      "Bash(/usr/local/bin/php74 examples/scenario/run.php 2>&1)"
+      "Bash(/usr/local/bin/php74 examples/scenario/run.php 2>&1)",
+      "Bash(/usr/local/bin/php74 /Users/xuyimu/bin/composer.phar require --dev phpstan/phpstan --no-interaction 2>&1 | tail -4)",
+      "Bash(/usr/local/bin/php74 vendor/bin/phpstan analyse src --level=5 --no-progress --error-format=raw)",
+      "Bash(tee /tmp/phpstan2.txt)"
     ]
   },
   "env123": {

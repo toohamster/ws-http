@@ -58,15 +58,14 @@ ws-http 是 cURL HTTP 客户端库,重构目标架构(见 design/10):
 | design/17 | plugin:三件套(认证+端点+语义化方法)、4 类型注册机制、内建样例 |
 | design/20 | 实施总计划:S1–S11 步骤与 Done 标准 |
 
-## 项目当前状态(S10 已完成,2026-09-15)
+## 项目当前状态(S10.5 已完成,2026-09-15)
 
-- **S1–S10 完成,功能开发全部结束**:Unit 288 tests 680 assertions + Engine 16 全绿;tags:alpha.0-core … alpha.7-cli-plugin
-- S10 交付:bin/ws-http(run 命令,退出码 0/1/2,--format/--report-out/--no-fail-fast/--var=name=value/--stop-on-parse-error)、Contract PluginInterface/PluginContext/AuthProviderInterface、PluginRegistry(bootDefaults 幂等/重名 501/未知 auth 502)、OpenAI plugin(Bearer + chat/models)、WordPress plugin(ApplicationPassword=Basic + posts/media + isWpError)、隔离性测试(core/functional 不引用 Plugin ns)、RequestFactory 默认实现
-- CLI 测试要点:进程级 exec 验证退出码;--var 只支持 --var=name=value 单参形态(空格形态在脚本内不可拆分,文档写清楚);CLI 成功用例用 delay-only 场景(无网络依赖)
-- Plugin 坑位:endpoint 类里箭头函数不能捕获 $this 用 static fn(static fn 无 $this 绑定,改普通闭包或方法);替身响应必须带 Content-Type 头才会触发 JSON 解析(body 才非 false)
-- S9 坑位:Contract 接口 namespace 必须 Ws\Http\Contract;测试 helper 不与 TestCase::expectError 撞名;Integration httpbin 本机偶发 SSL error 35(CI skip)
-- 约定:不可变 = private typed property + 访问器;接口不能有方法体;测试替身不用匿名类(替身请求类例外:SealedRequest/匿名工厂是功能性替身);Extension 机制最小化
-- **下一步 S11(收尾)**:PHPStan≥6、README 重写、CHANGELOG、删 legacy/、tag 2.0.0-alpha.1 正式版(仅本地)
+- **S1–S10.5 完成**:Unit 288 tests 680 assertions + Engine 16 全绿;tags:alpha.0-core … alpha.8-examples
+- S10.5 交付:examples/ 开发者示例集(README 索引 + 三示例:core httpbin-quick / functional scenario / plugin openai-chat);**openai 示例已用千帆兼容端点实测跑通**(换 base-url 即接协议兼容网关,model glm-5.3-flash;单轮/多轮/用量/错误形态全验证)
+- 示例约定:一目录一示例入口 run.php;密钥 config.example.php 模板 + gitignore 的 config.php + 环境变量(WS_HTTP_OPENAI_KEY/BASE_URL/MODEL)三层;离线可跑优先;scenario 示例故意指向不可达地址演示失败/兜底形态
+- S10 交付(上轮):bin/ws-http(退出码 0/1/2)、PluginRegistry/PluginInterface/PluginContext/AuthProviderInterface、OpenAI+WordPress plugin、隔离性测试、RequestFactory 默认实现
+- 坑位:static fn 不绑定 $this(endpoint 类用普通闭包);替身响应必须带 Content-Type 才触发 JSON 解析;CLI --var 只支持 = 连接的单参形态;Integration httpbin 偶发 SSL error 35(CI skip)
+- **下一步 S11(收尾)**:PHPStan≥6、README 重写(三层用法+示例索引)、CHANGELOG、删 legacy/、正式 tag
 
 ## 用户偏好
 

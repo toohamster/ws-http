@@ -1,0 +1,12 @@
+parameters:
+    level: 5
+    paths:
+        - src
+    treatPhpDocTypesAsCertain: false
+    ignoreErrors:
+        # PHPStan 2.2 函数签名存根对 PHP 7.4 的 curl_getinfo(resource) 误报;
+        # 代码经真实运行验证正确(Unit/Integration 全绿),升级 PHP 8 后可移除本条。
+        -
+            identifier: argument.type
+            path: src/Ws/Http/Request.php
+            count: 1

@@ -22,11 +22,6 @@ final class ResultSet implements \IteratorAggregate, \Countable
      */
     public function __construct(array $items = [])
     {
-        foreach ($items as $item) {
-            if (!\is_object($item)) {
-                throw new \InvalidArgumentException('ResultSet items must be objects');
-            }
-        }
         $this->items = array_values($items);
     }
 

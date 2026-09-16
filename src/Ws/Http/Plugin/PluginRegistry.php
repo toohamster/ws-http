@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ws\Http\Plugin;
 
+use Ws\Http\Contract\AuthProviderInterface;
 use Ws\Http\Contract\PluginContext;
 use Ws\Http\Contract\PluginInterface;
 use Ws\Http\Exception;

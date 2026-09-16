@@ -63,11 +63,13 @@ final class MemoryCookieStore implements CookieStoreInterface
     private function parseSetCookie(string $header): ?array
     {
         $parts = explode(';', $header);
-        if ($parts === []) {
+        // explode 至少返回一个元素,array_shift 恒取到 string
+        $first = (string) array_shift($parts);
+
+        if ($first === '') {
             return null;
         }
 
-        $first = array_shift($parts);
         $eq = strpos($first, '=');
         if ($eq === false || $eq === 0) {
             return null;

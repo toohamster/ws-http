@@ -11,7 +11,8 @@ use Ws\Http\Response;
 /**
  * 单步执行记录(design/16 §3.1):Runner 产出,Report/CLI 消费。
  *
- * @immutable 构造后不可变(PHP 7.4 无 readonly,按约定只读)
+ * durationMs 构造时通常未知(耗时在执行后才确定),由 Runner 在同包内补记 ——
+ * 这是有意的包内可变点(@internal 语义),对外只读。
  */
 final class StepResult
 {
@@ -41,7 +42,7 @@ final class StepResult
     /** @var int|null */
     public $statusCode;
 
-    /** @var float|null 步骤耗时(ms) */
+    /** @var float|null 步骤耗时(ms);由 Runner 在执行完成后补记(包内唯一可变点) */
     public $durationMs;
 
     /** @var string|null rawBody 前 2KB 摘录 */
