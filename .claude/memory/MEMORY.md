@@ -58,14 +58,15 @@ ws-http 是 cURL HTTP 客户端库,重构目标架构(见 design/10):
 | design/17 | plugin:三件套(认证+端点+语义化方法)、4 类型注册机制、内建样例 |
 | design/20 | 实施总计划:S1–S11 步骤与 Done 标准 |
 
-## 项目当前状态(S10.5 已完成,2026-09-15)
+## 项目当前状态(S11 已完成,2.0.0-beta.1 发布,2026-09-16)
 
-- **S1–S10.5 完成**:Unit 288 tests 680 assertions + Engine 16 全绿;tags:alpha.0-core … alpha.8-examples
-- S10.5 交付:examples/ 开发者示例集(README 索引 + 三示例:core httpbin-quick / functional scenario / plugin openai-chat);**openai 示例已用千帆兼容端点实测跑通**(换 base-url 即接协议兼容网关,model glm-5.3-flash;单轮/多轮/用量/错误形态全验证)
-- 示例约定:一目录一示例入口 run.php;密钥 config.example.php 模板 + gitignore 的 config.php + 环境变量(WS_HTTP_OPENAI_KEY/BASE_URL/MODEL)三层;离线可跑优先;scenario 示例故意指向不可达地址演示失败/兜底形态
-- S10 交付(上轮):bin/ws-http(退出码 0/1/2)、PluginRegistry/PluginInterface/PluginContext/AuthProviderInterface、OpenAI+WordPress plugin、隔离性测试、RequestFactory 默认实现
-- 坑位:static fn 不绑定 $this(endpoint 类用普通闭包);替身响应必须带 Content-Type 才触发 JSON 解析;CLI --var 只支持 = 连接的单参形态;Integration httpbin 偶发 SSL error 35(CI skip)
-- **下一步 S11(收尾)**:PHPStan≥6、README 重写(三层用法+示例索引)、CHANGELOG、删 legacy/、正式 tag
+- **S1–S11 全部完成,2.0 重构收官**:tag `v2.0.0-beta.1`(commit 2138ff4);alpha.0-core→beta.1 共 10 个 tag
+- 质量门禁:PHPStan level 5 **0 error**(phpstan.neon;唯一 ignore=curl_getinfo,系 PHPStan 2.2 存根对 7.4 resource 误报,升级 PHP 8 可移除);Unit 288 + Engine 16 + Integration 10 全绿;composer validate OK
+- S11 清理:legacy/ 已删(9.5k 行,git 历史可回溯);README 重写(三层能力表/分层快速开始/扩展机制/迁移差异表);CHANGELOG.md(完整 alpha 链 + B1–B11 修复记录)
+- 最终结构:src/Ws/Http(core+Contract)| Expression|Assert|Automated(functional)| Plugin(plugin);bin/ws-http;tests/{Unit,Engine,Integration,fixtures};examples/;design/01–20
+- 工具链:phpstan.neon 已配置(treatPhpDocTypesAsCertain: false);光标型 peek/atEnd 函数需 `@phpstan-impure`(副作用读取,消"always true"误报的正确姿势)
+- **方法论教训(用户两次强调)**:收尾/排查类工作必须先出完整步骤方案(编号+动作+验证一次列全)再一次性执行;严禁"看一个错改一处重跑"打转;诊断输出一次拿全不截断
+- **PHP 8 迭代预留**(design/20 §4,未排期):PHPStan L6、移除 curl_getinfo ignore、readonly/match/enum 等 7.4 降级还原、composer php ^8.1 —— 用户拍板与 PHP 8 升级合并推进,2.0.0-beta.1 为当前交付点
 
 ## 用户偏好
 
