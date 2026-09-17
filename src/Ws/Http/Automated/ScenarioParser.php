@@ -9,10 +9,12 @@ use Ws\Http\Method;
 use Ws\Http\StrKit;
 
 /**
- * 场景脚本解析器(design/14 §5:校验规则 V1–V11)。
+ * 场景脚本解析器(design/14 §5:校验规则 V1–V13)。
  *
  * 加载期一次性完成全部校验;失败抛 AutomatedException(code 401/402),消息含 JSON Pointer。
  * 已知取舍:V10(跨步骤变量引用)保守策略——加载期不校验,运行期按 design/15 §4.3 处理。
+ * V11–V13(design/22 §2):pause 步骤 var/from 必填、options 结构校验;
+ * from 引用的策略是否存在由 Runner 装配期校验(PauseRegistry,407),解析器不持有注册表。
  */
 final class ScenarioParser
 {
@@ -157,14 +159,14 @@ final class ScenarioParser
             }
 
             $type = (string) ($raw['type'] ?? '');
-            if (!\in_array($type, ['http', 'delay'], true)) {
-                throw $this->error($pointer . '/type', sprintf('"%s" is not a valid type (http|delay)', $type));
+            if (!\in_array($type, ['http', 'delay', 'pause'], true)) {
+                throw $this->error($pointer . '/type', sprintf('"%s" is not a valid type (http|delay|pause)', $type));
             }
 
             $this->checkFields(
                 $raw,
                 $pointer,
-                ['type', 'id', 'name', 'url', 'method', 'timeout', 'headers', 'auth', 'proxy', 'body', 'extract', 'assertions', 'duration']
+                ['type', 'id', 'name', 'url', 'method', 'timeout', 'headers', 'auth', 'proxy', 'body', 'extract', 'assertions', 'duration', 'var', 'from', 'options', 'prompt']
             );
 
             $id = (string) ($raw['id'] ?? '');
@@ -183,6 +185,11 @@ final class ScenarioParser
 
             if ($type === 'delay') {
                 $steps[] = new DelayStep($id, $name, $this->parseDuration($raw['duration'] ?? null, $pointer . '/duration'));
+                continue;
+            }
+
+            if ($type === 'pause') {
+                $steps[] = $this->parsePauseStep($raw, $pointer, $id, $name);
                 continue;
             }
 
@@ -259,6 +266,70 @@ final class ScenarioParser
         }
 
         return new HttpStep($id, $name, (string) $raw['url'], $method, $headers, $auth, $proxy, $body, $extract, $assertions, $timeout);
+    }
+
+    /**
+     * V11–V13:pause 步骤(var/from 必填,options 对象,extract 规则复用)。
+     *
+     * @param array<string, mixed> $raw
+     */
+    private function parsePauseStep(array $raw, string $pointer, string $id, string $name): PauseStep
+    {
+        // V11:var/from 必填
+        foreach (['var', 'from'] as $required) {
+            if (!isset($raw[$required]) || (string) $raw[$required] === '') {
+                throw $this->error($pointer . '/' . $required, sprintf('pause step requires field "%s"', $required));
+            }
+        }
+
+        $var = (string) $raw['var'];
+        if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $var)) {
+            throw $this->error($pointer . '/var', sprintf('"%s" does not match variable naming rule', $var));
+        }
+
+        // V13:options 结构校验
+        $options = $raw['options'] ?? [];
+        if (!\is_array($options)) {
+            throw $this->error($pointer . '/options', 'must be an object');
+        }
+        $this->checkOptionsScalarMap($options, $pointer . '/options');
+
+        $prompt = isset($raw['prompt']) ? (string) $raw['prompt'] : '';
+
+        // extract(可选,复用 http extract 规则解析)
+        $extract = [];
+        if (isset($raw['extract'])) {
+            if (!\is_array($raw['extract'])) {
+                throw $this->error($pointer . '/extract', 'must be an array');
+            }
+            $extract = $this->parseExtract($raw['extract'], $pointer . '/extract');
+        }
+
+        return new PauseStep($id, $name, $var, (string) $raw['from'], $options, $prompt, $extract);
+    }
+
+    /**
+     * V13:options 只允许标量值的一层对象(poll 的 interval/timeout、stdin 的 message/mask、
+     * environment 的 env/file、poll 探测的 path/response/rawBody 均为标量/数组形态)。
+     *
+     * @param array<string, mixed> $options
+     */
+    private function checkOptionsScalarMap(array $options, string $pointer): void
+    {
+        foreach ($options as $key => $value) {
+            if (\is_array($value)) {
+                // 允许标量列表(如 response 数组形态),不允许嵌套对象键
+                foreach ($value as $k => $v) {
+                    if (!\is_int($k) || \is_array($v)) {
+                        throw $this->error($pointer . '/' . $key, 'must be a scalar value or a list of scalars');
+                    }
+                }
+                continue;
+            }
+            if ($value !== null && !\is_scalar($value)) {
+                throw $this->error($pointer . '/' . $key, 'must be a scalar value');
+            }
+        }
     }
 
     /**

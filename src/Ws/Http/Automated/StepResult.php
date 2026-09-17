@@ -57,10 +57,14 @@ final class StepResult
     /** @var array<string, mixed> 本步骤新提取的变量(名→值,脱敏后) */
     public $extractedVariables;
 
+    /** @var array<string, mixed>|null 步骤类型专属附加信息(pause:source/var;design/22 §4) */
+    public $meta;
+
     /**
      * @param array{method: string, url: string}|null $request
      * @param array<string, mixed> $extractedVariables
      * @param string[] $warnings
+     * @param array<string, mixed>|null $meta
      */
     public function __construct(
         string $stepId,
@@ -74,7 +78,8 @@ final class StepResult
         ?string $responseExcerpt = null,
         ?ResultSet $assertionResults = null,
         array $warnings = [],
-        array $extractedVariables = []
+        array $extractedVariables = [],
+        ?array $meta = null
     ) {
         $this->stepId = $stepId;
         $this->stepName = $stepName;
@@ -88,6 +93,7 @@ final class StepResult
         $this->assertionResults = $assertionResults ?? new ResultSet();
         $this->warnings = $warnings;
         $this->extractedVariables = $extractedVariables;
+        $this->meta = $meta;
     }
 
     /**
@@ -113,6 +119,7 @@ final class StepResult
             'assertions'         => $this->assertionResults->toArray(),
             'warnings'           => $this->warnings,
             'extractedVariables' => $this->extractedVariables,
+            'meta'               => $this->meta,
         ];
     }
 }

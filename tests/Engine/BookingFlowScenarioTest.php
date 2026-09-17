@@ -96,12 +96,12 @@ final class BookingFlowScenarioTest extends TestCase
 
         $array = (new Runner($factory))->run($scenario)->toArray();
 
-        // JSON 报告契约(design/16 §3.2)结构快照
+        // JSON 报告契约(design/16 §3.2 + design/22 §4 meta 可选字段)结构快照
         self::assertSame(['id', 'name'], array_keys($array['scenario']));
         self::assertSame(['passed', 'failed', 'skipped', 'success'], array_keys($array['summary']));
         self::assertCount(5, $array['steps']);
         self::assertSame(
-            ['id', 'name', 'type', 'status', 'failReason', 'request', 'statusCode', 'durationMs', 'responseExcerpt', 'assertions', 'warnings', 'extractedVariables'],
+            ['id', 'name', 'type', 'status', 'failReason', 'request', 'statusCode', 'durationMs', 'responseExcerpt', 'assertions', 'warnings', 'extractedVariables', 'meta'],
             array_keys($array['steps'][0])
         );
     }

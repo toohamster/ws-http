@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Ws\Http\Automated;
 
 use Ws\Http\Assert\AssertionRunner;
+use Ws\Http\Automated\Pause\PauseRegistry;
+use Ws\Http\Automated\Pause\ValueResult;
 use Ws\Http\Body;
 use Ws\Http\Contract\CookieStoreInterface;
 use Ws\Http\Contract\RequestFactoryInterface;
@@ -36,16 +38,21 @@ final class Runner
     /** @var AssertionRunner */
     private $assertionRunner;
 
+    /** @var PauseRegistry|null pause 取值策略注册表(design/22;null = 场景不含 pause 步骤时零开销) */
+    private $pauseRegistry;
+
     public function __construct(
         RequestFactoryInterface $factory,
         ?ScenarioResolver $resolver = null,
         ?VarExtractor $extractor = null,
-        ?AssertionRunner $assertionRunner = null
+        ?AssertionRunner $assertionRunner = null,
+        ?PauseRegistry $pauseRegistry = null
     ) {
         $this->factory = $factory;
         $this->resolver = $resolver ?? new ScenarioResolver();
         $this->extractor = $extractor ?? new VarExtractor();
         $this->assertionRunner = $assertionRunner ?? new AssertionRunner();
+        $this->pauseRegistry = $pauseRegistry;
     }
 
     public function run(Scenario $scenario): Report
@@ -103,6 +110,10 @@ final class Runner
             $stepResult->durationMs = (microtime(true) - $startedAt) * 1000;
 
             return $stepResult;
+        }
+
+        if ($step instanceof PauseStep) {
+            return $this->runPauseStep($step, $scope, $startedAt);
         }
 
         \assert($step instanceof HttpStep);
@@ -236,6 +247,97 @@ final class Runner
         $stepResult->durationMs = (microtime(true) - $startedAt) * 1000;
 
         return $stepResult;
+    }
+
+    // ---------- pause 步骤(design/22 §4) ----------
+
+    private function runPauseStep(PauseStep $step, VariableScope $scope, float $startedAt): StepResult
+    {
+        $finish = function (StepResult $result) use ($startedAt): StepResult {
+            $result->durationMs = (microtime(true) - $startedAt) * 1000;
+
+            return $result;
+        };
+
+        if ($this->pauseRegistry === null) {
+            return $finish(new StepResult(
+                $step->id(),
+                $step->name(),
+                $step->type(),
+                StepResult::STATUS_FAILED,
+                'pause step used but no PauseRegistry configured on Runner'
+            ));
+        }
+
+        // 未知名策略(装配期未校验到的兜底)→ 407 语义的步骤级失败
+        if (!$this->pauseRegistry->has($step->from())) {
+            return $finish(new StepResult(
+                $step->id(),
+                $step->name(),
+                $step->type(),
+                StepResult::STATUS_FAILED,
+                sprintf('Unknown pause source "%s"', $step->from())
+            ));
+        }
+
+        try {
+            $result = $this->pauseRegistry->get($step->from())->fetch($step->options());
+        } catch (\Ws\Http\Automated\AutomatedException $e) {
+            return $finish(new StepResult($step->id(), $step->name(), $step->type(), StepResult::STATUS_FAILED, $e->getMessage()));
+        } catch (\Throwable $e) {
+            return $finish(new StepResult($step->id(), $step->name(), $step->type(), StepResult::STATUS_FAILED, sprintf('pause source failed: %s', $e->getMessage())));
+        }
+
+        if ($result->status() === ValueResult::MISSING) {
+            return $finish(new StepResult($step->id(), $step->name(), $step->type(), StepResult::STATUS_FAILED, $result->reason() ?? 'pause source returned missing'));
+        }
+
+        // got:值写入 VariableScope(可选 extract 规则对结构化值二次提取)
+        $value = $result->value();
+        $written = [];
+        $warnings = [];
+
+        if ($step->extract() !== [] && \is_array($value)) {
+            // 结构化值 → 伪 Response(带 JSON Content-Type)走既有提取器(json source 针对 body);extract 规则自带 var 名
+            $json = json_encode($value, JSON_UNESCAPED_UNICODE) ?: '{}';
+            $probe = new \Ws\Http\Response(
+                ['http_code' => 200, 'header_size' => 0, 'total_time' => 0.0],
+                $json,
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
+            );
+            $extraction = $this->extractor->extract($probe, $step->extract(), $scope);
+            $warnings = $extraction->warnings;
+            if ($extraction->failures !== []) {
+                return $finish(new StepResult($step->id(), $step->name(), $step->type(), StepResult::STATUS_FAILED, $extraction->failures[0]['message'], null, null, null, null, null, $extraction->warnings));
+            }
+            foreach ($extraction->written as $w) {
+                $written[$w['var']] = $w['value'];
+            }
+            if (!isset($written[$step->var()])) {
+                // 兜底:extract 未写到 var 名 → 整值回写
+                $scope->set($step->var(), $value);
+                $written[$step->var()] = $value;
+            }
+        } else {
+            $scope->set($step->var(), $value);
+            $written[$step->var()] = $value;
+        }
+
+        return $finish(new StepResult(
+            $step->id(),
+            $step->name(),
+            $step->type(),
+            StepResult::STATUS_PASSED,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            $warnings,
+            $written,
+            ['source' => $step->from(), 'var' => $step->var()]
+        ));
     }
 
     // ---------- 组装辅助 ----------
