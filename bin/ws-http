@@ -20,7 +20,6 @@ declare(strict_types=1);
  */
 
 use Ws\Http\Automated\AutomatedException;
-use Ws\Http\Automated\Report;
 use Ws\Http\Automated\Runner;
 use Ws\Http\Automated\ScenarioParser;
 
@@ -138,17 +137,10 @@ final class WsHttpCli
             $report = (new Runner(new \Ws\Http\Automated\RequestFactory()))->run($scenario);
 
             if ($this->options['reportOut'] !== null) {
-                file_put_contents(
-                    (string) $this->options['reportOut'],
-                    json_encode($report->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n"
-                );
+                file_put_contents((string) $this->options['reportOut'], $this->renderer()->render($report));
             }
 
-            if ($this->options['format'] === 'json') {
-                echo json_encode($report->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), "\n";
-            } else {
-                $this->renderText($report);
-            }
+            echo $this->renderer()->render($report);
 
             if (!$report->isSuccess()) {
                 $anyFailed = true;
@@ -254,104 +246,22 @@ final class WsHttpCli
         }
 
         if ($this->options['reportOut'] !== null) {
-            file_put_contents(
-                (string) $this->options['reportOut'],
-                json_encode($batch->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n"
-            );
+            file_put_contents((string) $this->options['reportOut'], $this->renderer()->render($batch));
         }
 
-        if ($this->options['format'] === 'json') {
-            echo json_encode($batch->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), "\n";
-        } else {
-            $this->renderBatch($batch);
-        }
+        echo $this->renderer()->render($batch);
 
         return $batch->isSuccess() ? self::EXIT_OK : self::EXIT_FAILED;
     }
 
-    private function renderBatch(\Ws\Http\Automated\Dataset\BatchReport $batch): void
+    /**
+     * 渲染器选择(design/16 §5.1):--format=text|json → 内建两实现。
+     */
+    private function renderer(): \Ws\Http\Automated\Render\ReportRendererInterface
     {
-        $lines = [];
-        $lines[] = sprintf('Batch dataset: %s', $batch->dataset);
-
-        foreach ($batch->records() as $i => $record) {
-            $report = $record->report;
-            $mark = $report->isSuccess() ? '✓' : '✗';
-            $lines[] = sprintf(
-                '  %s #%d  %d passed, %d failed, %d skipped  %sms',
-                $mark,
-                $i,
-                $report->passedCount(),
-                $report->failedCount(),
-                $report->skippedCount(),
-                number_format($report->totalDurationMs(), 0)
-            );
-            if (!$report->isSuccess()) {
-                foreach ($report->steps() as $step) {
-                    if ($step->status === \Ws\Http\Automated\StepResult::STATUS_FAILED) {
-                        $lines[] = sprintf('       step %s: %s', $step->stepId, (string) $step->failReason);
-                    }
-                }
-            }
-        }
-
-        $lines[] = '';
-        $lines[] = sprintf(
-            'Batch summary: %d/%d passed, %d failed (%s) in %sms',
-            $batch->passed(),
-            $batch->total(),
-            $batch->failed(),
-            implode(', ', $batch->failedRecordIndexes()),
-            number_format($batch->totalDurationMs(), 0)
-        );
-
-        echo implode("\n", $lines), "\n";
-    }
-
-    private function renderText(Report $report): void
-    {
-        $lines = [];
-        $lines[] = sprintf('Scenario %s (%s)', $report->scenarioName, $report->scenarioId);
-
-        foreach ($report->steps() as $step) {
-            switch ($step->status) {
-                case \Ws\Http\Automated\StepResult::STATUS_PASSED:
-                    $mark = '✓';
-                    break;
-                case \Ws\Http\Automated\StepResult::STATUS_FAILED:
-                    $mark = '✗';
-                    break;
-                default:
-                    $mark = '-';
-            }
-
-            $line = sprintf(
-                '  %s %-10s %-28s %s  %sms',
-                $mark,
-                $step->stepId,
-                mb_substr($step->stepName, 0, 28),
-                $step->statusCode !== null ? (string) $step->statusCode : ($step->status === \Ws\Http\Automated\StepResult::STATUS_SKIPPED ? 'skipped' : ''),
-                $step->durationMs !== null ? number_format((float) $step->durationMs, 0) : '-'
-            );
-            $lines[] = $line;
-
-            if ($step->status === \Ws\Http\Automated\StepResult::STATUS_FAILED) {
-                foreach (explode("\n", (string) $step->failReason) as $reasonLine) {
-                    $lines[] = sprintf('       %s', $reasonLine);
-                }
-            }
-        }
-
-        $lines[] = '';
-        $lines[] = sprintf(
-            'Summary: %d passed, %d failed, %d skipped (%sms)',
-            $report->passedCount(),
-            $report->failedCount(),
-            $report->skippedCount(),
-            number_format($report->totalDurationMs(), 0)
-        );
-
-        echo implode("\n", $lines), "\n";
+        return $this->options['format'] === 'json'
+            ? new \Ws\Http\Automated\Render\JsonRenderer()
+            : new \Ws\Http\Automated\Render\TextRenderer();
     }
 
     private function usage(): void
