@@ -44,6 +44,8 @@ final class WsHttpCli
         'noFailFast'        => false,
         'vars'              => [],
         'stopOnParseError'  => false,
+        'dataset'           => null,
+        'datasetName'       => '_cli',
     ];
 
     /**
@@ -124,6 +126,15 @@ final class WsHttpCli
                 $scenario->settings['failFast'] = false;
             }
 
+            // --dataset <file>(design/23 §5):文件记录迭代执行(批次模式)
+            if ($this->options['dataset'] !== null) {
+                $exitCode = $this->runBatch($scenario, $scriptPath);
+                if ($exitCode === self::EXIT_FAILED) {
+                    $anyFailed = true;
+                }
+                continue;
+            }
+
             $report = (new Runner(new \Ws\Http\Automated\RequestFactory()))->run($scenario);
 
             if ($this->options['reportOut'] !== null) {
@@ -184,6 +195,20 @@ final class WsHttpCli
             return 'Missing value for --var (use --var name=value)';
         }
 
+        if (strpos($arg, '--dataset=') === 0) {
+            $this->options['dataset'] = substr($arg, strlen('--dataset='));
+            return null;
+        }
+
+        if ($arg === '--dataset') {
+            return 'Missing value for --dataset (use --dataset=records.json)';
+        }
+
+        if (strpos($arg, '--dataset-name=') === 0) {
+            $this->options['datasetName'] = substr($arg, strlen('--dataset-name='));
+            return null;
+        }
+
         return sprintf('Unknown option: %s', $arg);
     }
 
@@ -200,6 +225,87 @@ final class WsHttpCli
         $this->options['vars'][substr($pair, 0, $eq)] = substr($pair, $eq + 1);
 
         return null;
+    }
+
+    /**
+     * 批次模式(design/23 §5):--dataset 文件记录迭代,输出 batch 报告。
+     */
+    private function runBatch(\Ws\Http\Automated\Scenario $scenario, string $scriptPath): int
+    {
+        try {
+            $loader = new \Ws\Http\Automated\Dataset\JsonFileLoader(dirname($scriptPath));
+            $records = \Ws\Http\Automated\Dataset\DatasetValidator::validate(
+                $loader->load(['file' => (string) $this->options['dataset']]),
+                sprintf('dataset "%s"', $this->options['dataset'])
+            );
+
+            // --dataset-name 指定时同时登记到场景 datasets(脚本可用 datasets 语义引用)
+            $name = (string) $this->options['datasetName'];
+            if ($name !== '_cli') {
+                $scenario->datasets[$name] = $records;
+            }
+
+            $batch = (new \Ws\Http\Automated\Dataset\DatasetRunner(new Runner(new \Ws\Http\Automated\RequestFactory())))
+                ->run($scenario, $records);
+        } catch (\Ws\Http\Automated\AutomatedException $e) {
+            fwrite(STDERR, sprintf("[dataset] %s\n", $e->getMessage()));
+
+            return self::EXIT_PARSE_ERROR;
+        }
+
+        if ($this->options['reportOut'] !== null) {
+            file_put_contents(
+                (string) $this->options['reportOut'],
+                json_encode($batch->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n"
+            );
+        }
+
+        if ($this->options['format'] === 'json') {
+            echo json_encode($batch->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), "\n";
+        } else {
+            $this->renderBatch($batch);
+        }
+
+        return $batch->isSuccess() ? self::EXIT_OK : self::EXIT_FAILED;
+    }
+
+    private function renderBatch(\Ws\Http\Automated\Dataset\BatchReport $batch): void
+    {
+        $lines = [];
+        $lines[] = sprintf('Batch dataset: %s', $batch->dataset);
+
+        foreach ($batch->records() as $i => $record) {
+            $report = $record->report;
+            $mark = $report->isSuccess() ? '✓' : '✗';
+            $lines[] = sprintf(
+                '  %s #%d  %d passed, %d failed, %d skipped  %sms',
+                $mark,
+                $i,
+                $report->passedCount(),
+                $report->failedCount(),
+                $report->skippedCount(),
+                number_format($report->totalDurationMs(), 0)
+            );
+            if (!$report->isSuccess()) {
+                foreach ($report->steps() as $step) {
+                    if ($step->status === \Ws\Http\Automated\StepResult::STATUS_FAILED) {
+                        $lines[] = sprintf('       step %s: %s', $step->stepId, (string) $step->failReason);
+                    }
+                }
+            }
+        }
+
+        $lines[] = '';
+        $lines[] = sprintf(
+            'Batch summary: %d/%d passed, %d failed (%s) in %sms',
+            $batch->passed(),
+            $batch->total(),
+            $batch->failed(),
+            implode(', ', $batch->failedRecordIndexes()),
+            number_format($batch->totalDurationMs(), 0)
+        );
+
+        echo implode("\n", $lines), "\n";
     }
 
     private function renderText(Report $report): void
@@ -261,6 +367,8 @@ Options:
   --report-out=<file>    write JSON report to file
   --no-fail-fast         continue after failed steps
   --var name=value       override/append scenario variable (repeatable)
+  --dataset=<file>       data-driven: iterate scenario per record in file (batch mode)
+  --dataset-name=<name>  dataset name registered into scenario (default _cli)
   --stop-on-parse-error  abort on first parse error
 
 Exit codes: 0=all success, 1=failed steps, 2=parse error

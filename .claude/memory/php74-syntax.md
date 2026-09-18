@@ -48,3 +48,4 @@
 4. 构造器里"传统赋值"写法注意 private typed property 必须在赋值前已声明;
 5. 检查语法只用 `-l` 不够:运行时函数(如 str_contains)会漏网,需要 `php74 -r 'function_exists(...)'` 或单测兜底;
 6. 设计文档中写了 `public readonly` 的签名(design/11 §3 Response、§7 RequestException 等)一律按本表降级实现:**typed property + 文档标注不可变约定**,不改设计文档语义。
+7. **`array_is_list()` 是 8.1 运行时函数**(同类陷阱,design/23 实现踩过):判断"纯列表"用 `array_keys($a) === range(0, count($a) - 1)` 或 `$a === array_values($a)`(注意空数组两法都返回 true,恰好符合 is_list 语义)。

@@ -63,7 +63,7 @@ final class ScenarioParser
      */
     public function parseArray(array $data): Scenario
     {
-        $this->checkFields($data, '$', ['id', 'name', 'description', 'settings', 'variables', 'steps', '$schema']);
+        $this->checkFields($data, '$', ['id', 'name', 'description', 'settings', 'variables', 'steps', 'datasets', '$schema']);
 
         // V2:顶层必填
         foreach (['id', 'name', 'steps'] as $required) {
@@ -85,7 +85,7 @@ final class ScenarioParser
             if (!\is_array($data['settings'])) {
                 throw $this->error('/settings', 'must be an object');
             }
-            $this->checkFields($data['settings'], '/settings', ['timeout', 'failFast', 'cookieStore', 'proxy', 'redirect']);
+            $this->checkFields($data['settings'], '/settings', ['timeout', 'failFast', 'cookieStore', 'proxy', 'redirect', 'iterate']);
             if (isset($data['settings']['redirect'])) {
                 $data['settings']['redirect'] = $this->parseRedirect($data['settings']['redirect'], '/settings/redirect');
             }
@@ -95,6 +95,23 @@ final class ScenarioParser
 
         // variables(V8:命名 + 唯一 + secret bool)
         $scenario->variables = $this->parseVariables($data['variables'] ?? []);
+
+        // datasets(V14:名 → 内联数组或 {file|loader} 对象)
+        $datasets = $this->parseDatasets($data['datasets'] ?? null);
+        if ($datasets !== []) {
+            $scenario->datasets = $datasets;
+        }
+
+        // V15:iterate 引用的数据集必须存在
+        if (isset($data['settings']['iterate'])) {
+            $iterate = (string) $data['settings']['iterate'];
+            if ($iterate === '') {
+                throw $this->error('/settings/iterate', 'must be a non-empty string');
+            }
+            if (!isset($scenario->datasets[$iterate])) {
+                throw $this->error('/settings/iterate', sprintf('references unknown dataset "%s"', $iterate));
+            }
+        }
 
         // steps(V4 id 唯一 / V5 method×mode / V6 时间 / V7 auth+proxy / V9 表达式 / V11 template)
         $scenario->steps = $this->parseSteps($data['steps']);
@@ -309,6 +326,33 @@ final class ScenarioParser
         }
 
         return new PauseStep($id, $name, $var, (string) $raw['from'], $options, $prompt, $extract);
+    }
+
+    /**
+     * V14:datasets 必须是对象;每个值是"记录数组"或含 file/loader 的对象。
+     * V16:非空且所有记录为 object(同构校验在 DatasetRunner/CLI 装配时做——解析器只保形态)。
+     *
+     * @return array<string, mixed>
+     */
+    private function parseDatasets($raw): array
+    {
+        if ($raw === null) {
+            return [];
+        }
+        if (!\is_array($raw) || $raw === array_values($raw)) { // array_values 比对 = 纯列表判定(7.4 无 array_is_list)
+            throw $this->error('/datasets', 'must be an object (name -> records)');
+        }
+
+        $datasets = [];
+        foreach ($raw as $name => $spec) {
+            $pointer = sprintf('/datasets/%s', $name);
+            if (!\is_array($spec)) {
+                throw $this->error($pointer, 'must be an array (inline records) or an object (file/loader)');
+            }
+            $datasets[(string) $name] = $spec;
+        }
+
+        return $datasets;
     }
 
     /**

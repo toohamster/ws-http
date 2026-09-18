@@ -32,4 +32,7 @@ final class Scenario
 
     /** @var array<int, HttpStep|DelayStep|PauseStep> */
     public $steps = [];
+
+    /** @var array<string, mixed> datasets 原始声明(名 → 内联数组或 {file|loader} 对象,design/23 §2.1) */
+    public $datasets = [];
 }
