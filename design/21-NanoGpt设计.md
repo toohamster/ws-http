@@ -149,6 +149,43 @@ final class ToolRegistry
 - 文件工具构造时注入 `Sandbox`,只接受 `resolve()` 后的路径——**穿越检查集中在 Sandbox 一处**,工具自身不重复实现;
 - HttpGetTool 是"读网络接口"最小形态(不做 POST/认证/分页),复杂 HTTP 需求应由使用者自定义 Tool 实现——这本身就是组件扩展点的演示。
 
+### 4.2 Preset(出厂预设集,装配期概念)
+
+**动机**:裸组件要求使用者自己 register 一串工具(接入样板重复);"某服务没有文件能力需要整体禁用"是真实需求。Preset 把"一组出厂内容"打包成可整体替换的预设——它是**装配期(bootstrap)概念**,与 design/17 plugin(三方系统适配打包)同心智,但作用于"NanoGpt 能力预设"维度。
+
+**边界(防过度设计)**:
+
+1. Preset **不碰 agent loop 语义**:不覆盖 maxTurns/systemPrompt/model(那些是 Agent 构造参数);只管"装什么工具、用什么模型目录";
+2. **不做** Package 注册表/发现机制/版本兼容——Preset 就是实现了接口的一个普通类,使用者 new 哪个用哪个,无全局"已安装包"状态;
+3. "禁用"语义 = 选 MinimalPreset 或从 tools() 数组移除,**不做** enable/disable 开关矩阵;
+4. 命令(/xxx)是壳的概念,组件不感知——命令集由壳按 Preset 装配(§8)。
+
+```php
+namespace Ws\Http\NanoGpt;
+
+interface Preset
+{
+    /** @return ToolInterface[] 出厂工具集(使用者可在此基础上增删) */
+    public function tools(): array;
+
+    /** 模型目录来源(§8.1);null = 壳自行处理 */
+    public function modelSource(): ?ModelSourceInterface;
+}
+
+final class FullPreset implements Preset {}     // 4 内建工具 + OrcaRouterModelSource
+final class MinimalPreset implements Preset {}  // 纯对话,零工具(禁用场景一行解决)
+```
+
+使用者视角:
+
+```php
+$preset = new FullPreset();                     // 或 MinimalPreset(),或自己的类
+$agent  = new Agent($client, $model);
+foreach ($preset->tools() as $tool) {
+    $agent->tools()->register($tool);
+}
+```
+
 ## 5. Sandbox(安全边界)
 
 ```php
@@ -226,6 +263,36 @@ examples/cc-gpt/
 - **/context**:读 `Conversation::usage()` 展示跨轮累积 + 当前模型 + 已注册工具列表;
 - 运行时工作目录:`cc-gpt/`(cwd 下,Sandbox root 与 .settings.json 同处),`.gitignore` 追加 `cc-gpt/`。
 
+### 8.1 ModelSource(模型目录来源,壳层契约)与 Preset 装配
+
+**动机**:模型列表获取方式随服务不同(orcarouter 解析 /models 链接;百炼类可能手动指定);命令集(/xxx)也随环境增减。这些是**配置与产品形态**问题,归属壳层;组件只接收 `string $model` 运行参数,不感知"模型从哪来"。
+
+```php
+// 壳层(CcGpt)契约——不进 NanoGpt 组件:
+interface ModelSourceInterface
+{
+    /** @return ModelInfo[] {id, name, pricing} 展示用模型目录 */
+    public function models(): array;
+}
+
+final class OrcaRouterModelSource implements ModelSourceInterface {}  // models()->list() 过滤 free
+final class StaticModelSource implements ModelSourceInterface {}     // config.php 手写列表
+
+// 命令集随 Preset 装配(§4.2):Application::bootstrap(Preset $preset)
+//   preset->tools()      → 逐个 ToolRegistry::register()
+//   preset->modelSource()→ /model 命令的目录来源(null 时 /model 提示手动 --model)
+//   命令集:内建 4 命令恒注册;壳不再按环境增删内建命令(使用者在自己的启动脚本追加)
+```
+
+变更归属总结(评审结论,勿反复):
+
+| 变化 | 归属 | 机制 |
+| --- | --- | --- |
+| 模型目录来源不同 | 壳 | ModelSourceInterface 两内建(OrcaRouter/Static) |
+| 能力差异(本地/S3/自定义) | 组件 | ToolInterface + ToolRegistry(§4);S3 = 自定义 Tool,介质自管 |
+| 命令差异 | 壳 | CommandInterface + CommandRegistry |
+| 出厂内容整体换装/禁用 | 两层 | Preset(§4.2,组件段 tools+modelSource)+ 壳按 Preset 装配命令 |
+
 ## 9. 测试要点
 
 | 用例组 | 覆盖 |
@@ -235,16 +302,17 @@ examples/cc-gpt/
 | ToolRegistry | 注册/重名 603/未知名 602/jsonSchemas 结构 |
 | 内建工具 | Write→Read 往返;ListDir;HttpGet 白名单拒绝 |
 | Conversation | 追加/usage 累积/reset |
-| 壳(tests/Unit/Ccgpt/) | CommandRegistry 注册/未知名;Settings 读写往返、缺字段;不测 UI 与真实网络 |
+| Preset | FullPreset 含 4 工具 + modelSource;MinimalPreset 零工具 + null;自定义 Preset 增删工具后 jsonSchemas 生效 |
+| 壳(tests/Unit/Ccgpt/) | CommandRegistry 注册/未知名;Settings 读写往返、缺字段;ModelSource 两内建;不测 UI 与真实网络 |
 | 隔离性 | core/functional/Plugin 无对 `Ws\Http\NanoGpt\` 的引用(沿用 design/17 §6 隔离测试模式) |
 
 ## 10. 实施步骤(N1–N5,测试先行)
 
 | # | 步骤 | 交付物 | 验证 |
 | --- | --- | --- | --- |
-| N1 | 组件核心 | ToolInterface/ToolRegistry/Sandbox + 4 内建工具 + Conversation + AgentException | Sandbox 三态 + Registry 单测绿 |
+| N1 | 组件核心 | ToolInterface/ToolRegistry/Sandbox + 4 内建工具 + Conversation + Preset(§4.2)+ AgentException | Sandbox 三态 + Registry/Preset 单测绿 |
 | N2 | Agent loop | Agent.php | mock 双响应序列单测 |
-| N3 | CLI 壳 | examples/cc-gpt 全部 | 壳单测 + /help /init /model(mock)/context 路径覆盖 |
+| N3 | CLI 壳 | examples/cc-gpt 全部(含 ModelSource 两内建) | 壳单测 + /help /init /model(mock)/context 路径覆盖 |
 | N4 | 集成冒烟 | 真实 orcarouter key 全链 | GET /models 过滤 free → /model 选择 → 带工具对话 |
 | N5 | 文档收口 | 主 README/CHANGELOG 更新、design/README 索引同步 | — |
 
