@@ -26,6 +26,9 @@ final class FakeRequestFactory implements \Ws\Http\Contract\RequestFactoryInterf
     /** @var array<int, array{url: string, method: string, body: mixed, headers: array}> 捕获的请求 */
     public array $sent = [];
 
+    /** @var array<int, RequestOptions> 按 create 调用序号捕获的选项(redirect/timeout 断言用) */
+    public array $capturedOptions = [];
+
     private int $index = 0;
 
     public function queue(Response $response): void
@@ -37,6 +40,7 @@ final class FakeRequestFactory implements \Ws\Http\Contract\RequestFactoryInterf
     {
         // 返回一个受控 Request:executeCurl 直接返回队列中的响应
         $response = $this->responses[$this->index] ?? $this->defaultResponse();
+        $this->capturedOptions[$this->index] = $options;
         $this->index++;
 
         return new SealedRequest($response, $this, $this->index - 1);

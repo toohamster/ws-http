@@ -20,7 +20,7 @@ final class Scenario
     /** @var string 描述(可选) */
     public $description;
 
-    /** @var array{timeout: string, failFast: bool, cookieStore: string} 场景级默认 */
+    /** @var array{timeout: string, failFast: bool, cookieStore: string, redirect?: array{follow: bool, max: int}} 场景级默认 */
     public $settings = [
         'timeout'     => '30s',
         'failFast'    => true,
@@ -30,6 +30,6 @@ final class Scenario
     /** @var array<int, array{name: string, value: mixed, secret?: bool}> */
     public $variables = [];
 
-    /** @var array<int, HttpStep|DelayStep> */
+    /** @var array<int, HttpStep|DelayStep|PauseStep> */
     public $steps = [];
 }

@@ -55,6 +55,7 @@
 | `failFast` | bool | `true` | 等价旧 Task type=1:任一步骤失败即终止(替代 type 字段,语义自明) |
 | `cookieStore` | string | `"memory"` | `memory` = 内存 jar 跨步骤传递;`none` = 不管理;`file:<path>` = 持久化(design/16) |
 | `proxy` | Proxy\|null | `null` | 场景级代理默认;步骤可覆盖 |
+| `redirect` | Redirect\|null | `null`(= follow:true, max:10) | 场景级重定向默认;步骤可覆盖(见 §4.5) |
 
 校验:未知字段**拒绝**(严格模式,防止拼写错误静默失效——v1 中 `headers` vs `header` 就是教训)。
 
@@ -89,6 +90,10 @@
     "port": 1080,
     "tunnel": false,
     "auth": { "user": "", "password": "" }
+  },
+  "redirect": {                             // 可选,覆盖场景级;结构见 §4.5
+    "follow": false,                        // 不跟随 3xx(断言 302/location 的前提)
+    "max": 3                                // follow=true 时生效
   },
   "body": {                                 // 可选;请求体定义,见 §4.4
     "mode": "json",                         // "params"|"urlencoded"|"json"|"xml"|"html"|"text"|"binary"
@@ -193,6 +198,18 @@ timeout 为 0 或负数拒绝(修复 v1 静默回退 30s 的隐式行为——v2
 > v1 有 `raw-json/raw-xml/raw-textxml/raw-html/raw-text` 五种前缀命名与 `raw-binary` 抛异常的处理;v2 统一为单一 `mode` 枚举,`binary` 明确支持(修复 v1 的"未支持"),`textxml` 合并入 `xml`(v1 中两形态实际等价,保留一个)。
 > `json` mode 只做透传不二次编码:content 是**原始 JSON 字符串**(支持内嵌 `${var}` 替换后再发送,顺序见 design/15 §4)。
 
+### 4.5 redirect 结构(3xx 行为显式化)
+
+```jsonc
+{ "follow": true, "max": 10 }
+```
+
+- 字段均可选;`follow` bool(默认 true),`max` int ≥ 0(默认 10,core `withMaxRedirects`);
+- `follow: false` → cURL 不跟随(`withMaxRedirects(0)`),Response 即 3xx 本体——**断言 `status: 302` / `header: location` 的前提**;Location 头原样可提取;
+- `max` 仅在 `follow: true` 时有意义,`follow: false` + 显式 `max` 是矛盾组合 → 校验拒绝(V18);
+- 超过 max:cURL 返回 `CURLE_TOO_MANY_REDIRECTS` → 既有传输异常通道(design/16 §1 `failed`,无新错误码);
+- 合并语义:内置(follow:true, max:10)< 场景 `settings.redirect` < 步骤 `redirect`(与 timeout/proxy 一致)。
+
 ### 4.5 extract 与 assertions 字段
 
 - `extract`: `VarRule[]`,契约见 design/15 §3;
@@ -215,6 +232,9 @@ timeout 为 0 或负数拒绝(修复 v1 静默回退 30s 的隐式行为——v2
 | V9 | 全部 assertions 的 json 路径、全部 extract 的 json 路径通过 `ExpressionEvaluator::validate()`(提前暴露脚本错误) | 402 |
 | V10 | extract[].var 引用的变量名必须已声明(variables 或前置步骤 extract)——**保守策略:加载期不校验跨步骤引用,运行期未声明变量按 design/15 §4 处理** | — |
 | V11 | extract[].source=template 时,path 模式串必须含至少一个 `{name}` 占位符(纯字面量模式是配置错误) | 402 |
+| V12 | pause 步骤 var/from 必填;options 必须为对象(标量或标量列表);var 符合命名规则(design/22 §2) | 402 |
+| V13 | 未知步骤类型拒绝(http|delay|pause) | 402 |
+| V18 | `redirect`(settings 与步骤级)必须为对象;follow 必为 bool;max 必为 int ≥ 0;`follow:false` + 显式 max 拒绝 | 402 |
 
 > 校验失败消息格式:`{jsonPointer}: {原因}`,如 `/steps/2/body/mode: "form" is not a valid mode`。
 

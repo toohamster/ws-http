@@ -152,6 +152,14 @@ final class Runner
         $options = new RequestOptions();
         $options = $this->applyTimeout($options, $timeoutString);
 
+        // 2.1 重定向三级合并(design/14 §4.5 / design/16 §1.1.1):内置(follow:true,max:10) < settings.redirect < step.redirect
+        $redirect = $step->redirect() ?? ($scenario->settings['redirect'] ?? null);
+        if (\is_array($redirect)) {
+            $options = (bool) ($redirect['follow'] ?? true)
+                ? $options->withMaxRedirects((int) ($redirect['max'] ?? 10))
+                : $options->withMaxRedirects(0);
+        }
+
         // auth → RequestOptions(design/14 §4.2)
         if (\is_array($auth)) {
             $options = $this->applyAuth($options, $auth);

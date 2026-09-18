@@ -85,7 +85,10 @@ final class ScenarioParser
             if (!\is_array($data['settings'])) {
                 throw $this->error('/settings', 'must be an object');
             }
-            $this->checkFields($data['settings'], '/settings', ['timeout', 'failFast', 'cookieStore', 'proxy']);
+            $this->checkFields($data['settings'], '/settings', ['timeout', 'failFast', 'cookieStore', 'proxy', 'redirect']);
+            if (isset($data['settings']['redirect'])) {
+                $data['settings']['redirect'] = $this->parseRedirect($data['settings']['redirect'], '/settings/redirect');
+            }
             $scenario->settings = array_merge($scenario->settings, $data['settings']);
             $scenario->settings['failFast'] = (bool) $scenario->settings['failFast'];
         }
@@ -166,7 +169,7 @@ final class ScenarioParser
             $this->checkFields(
                 $raw,
                 $pointer,
-                ['type', 'id', 'name', 'url', 'method', 'timeout', 'headers', 'auth', 'proxy', 'body', 'extract', 'assertions', 'duration', 'var', 'from', 'options', 'prompt']
+                ['type', 'id', 'name', 'url', 'method', 'timeout', 'headers', 'auth', 'proxy', 'body', 'extract', 'assertions', 'duration', 'var', 'from', 'options', 'prompt', 'redirect']
             );
 
             $id = (string) ($raw['id'] ?? '');
@@ -265,7 +268,7 @@ final class ScenarioParser
             $assertions = $this->parseAssertions($raw['assertions'], $pointer . '/assertions');
         }
 
-        return new HttpStep($id, $name, (string) $raw['url'], $method, $headers, $auth, $proxy, $body, $extract, $assertions, $timeout);
+        return new HttpStep($id, $name, (string) $raw['url'], $method, $headers, $auth, $proxy, $body, $extract, $assertions, $timeout, isset($raw['redirect']) ? $this->parseRedirect($raw['redirect'], $pointer . '/redirect') : null);
     }
 
     /**
@@ -306,6 +309,36 @@ final class ScenarioParser
         }
 
         return new PauseStep($id, $name, $var, (string) $raw['from'], $options, $prompt, $extract);
+    }
+
+    /**
+     * V18:redirect 结构(follow bool / max int ≥0;follow:false + 显式 max 拒绝)。
+     *
+     * @return array{follow: bool, max: int}
+     */
+    private function parseRedirect($raw, string $pointer): array
+    {
+        if (!\is_array($raw)) {
+            throw $this->error($pointer, 'must be an object');
+        }
+        $this->checkFields($raw, $pointer, ['follow', 'max']);
+
+        $follow = isset($raw['follow']) ? $raw['follow'] : true;
+        if (!\is_bool($follow)) {
+            throw $this->error($pointer . '/follow', 'must be a boolean');
+        }
+
+        if (isset($raw['max'])) {
+            $max = $raw['max'];
+            if (!\is_int($max) || $max < 0) {
+                throw $this->error($pointer . '/max', 'must be an integer >= 0');
+            }
+            if (!$follow) {
+                throw $this->error($pointer . '/max', 'is meaningless when follow=false (remove max or set follow=true)');
+            }
+        }
+
+        return ['follow' => $follow, 'max' => isset($raw['max']) ? $raw['max'] : 10];
     }
 
     /**

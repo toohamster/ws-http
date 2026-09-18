@@ -45,6 +45,9 @@ final class HttpStep implements Step
     /** @var string|null 步骤级超时覆盖 */
     private $timeout;
 
+    /** @var array{follow: bool, max: int}|null 步骤级重定向覆盖(design/14 §4.5) */
+    private $redirect;
+
     /** @var array<string, true> 运行期提取变量中需标记 secret 的名字(引擎注入,design/15 §2.1.1) */
     private $extractSecrets = [];
 
@@ -52,6 +55,7 @@ final class HttpStep implements Step
      * @param array<string, string> $headers
      * @param array<int, array<string, mixed>> $extract
      * @param array<int, array<string, mixed>> $assertions
+     * @param array{follow: bool, max: int}|null $redirect
      */
     public function __construct(
         string $id,
@@ -64,7 +68,8 @@ final class HttpStep implements Step
         ?array $body = null,
         array $extract = [],
         array $assertions = [],
-        ?string $timeout = null
+        ?string $timeout = null,
+        ?array $redirect = null
     ) {
         $this->id = $id;
         $this->name = $name;
@@ -77,6 +82,7 @@ final class HttpStep implements Step
         $this->extract = $extract;
         $this->assertions = $assertions;
         $this->timeout = $timeout;
+        $this->redirect = $redirect;
     }
 
     public function id(): string
@@ -143,6 +149,12 @@ final class HttpStep implements Step
     public function timeout(): ?string
     {
         return $this->timeout;
+    }
+
+    /** @return array{follow: bool, max: int}|null */
+    public function redirect(): ?array
+    {
+        return $this->redirect;
     }
 
     /**
