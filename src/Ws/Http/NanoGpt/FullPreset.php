@@ -36,9 +36,13 @@ final class FullPreset implements Preset
     /** @var string|null ExecTool 工作目录(.runtime) */
     private $execCwd;
 
+    /** @var ToolInterface[]|null 代码形态命令工具批量注入(withCommandTools) */
+    private $commandTools;
+
     /**
      * @param string[] $httpAllowHosts
      * @param string[]|null $execAllowBinaries
+     * @param ToolInterface[]|null $commandTools
      */
     public function __construct(
         Sandbox $sandbox,
@@ -46,7 +50,8 @@ final class FullPreset implements Preset
         array $httpAllowHosts = [],
         ?Request $http = null,
         ?array $execAllowBinaries = null,
-        ?string $execCwd = null
+        ?string $execCwd = null,
+        ?array $commandTools = null
     ) {
         $this->sandbox = $sandbox;
         $this->modelSource = $modelSource;
@@ -54,6 +59,20 @@ final class FullPreset implements Preset
         $this->http = $http;
         $this->execAllowBinaries = $execAllowBinaries;
         $this->execCwd = $execCwd;
+        $this->commandTools = $commandTools;
+    }
+
+    /**
+     * 批量注入代码形态命令工具(design/25 §4.2);描述文件形态由壳经 Loader 装载后注册,不走此处。
+     *
+     * @param ToolInterface[] $tools
+     */
+    public function withCommandTools(array $tools): self
+    {
+        $clone = clone $this;
+        $clone->commandTools = $tools;
+
+        return $clone;
     }
 
     /**
@@ -97,6 +116,12 @@ final class FullPreset implements Preset
                 30,
                 2048
             );
+        }
+
+        if ($this->commandTools !== null) {
+            foreach ($this->commandTools as $tool) {
+                $tools[] = $tool;
+            }
         }
 
         return $tools;

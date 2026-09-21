@@ -43,6 +43,7 @@ final class Application
         $this->input = $input ?? new Input();
 
         // 三区(design/21 §8):.settings.json 壳根 / .work 沙箱 primary / .runtime 草稿区(目录常驻,运行时自动创建)
+        $this->repoRoot = $repoRoot;
         $sandbox = new Sandbox(
             $workOverride ?? $repoRoot . '/.work',
             [$repoRoot . '/.runtime']
@@ -59,6 +60,9 @@ final class Application
 
         $this->bootstrapAgent($sandbox);
     }
+
+    /** @var string 壳项目根(tools/ 装载等使用) */
+    private $repoRoot;
 
     /**
      * 内建命令集(壳恒注册;使用者可在 registry 上追加)。
@@ -117,6 +121,16 @@ final class Application
                 $this->context->agent->tools()->register($tool);
             }
             $this->context->modelSource = $preset->modelSource();
+        }
+
+        // 声明式工具(design/25 §4):tools/ 目录 *.tool.json 装载(结构性安全,默认装载;
+        // 单文件非法被 Loader 跳过并留痕,启动时汇总提示)
+        $loader = new \Ws\Http\NanoGpt\DescriptorToolLoader(
+            $this->repoRoot . '/tools',
+            new \Ws\Http\NanoGpt\CommandExecKernel($this->repoRoot . '/.runtime', 30, 2048)
+        );
+        foreach ($loader->loadAll() as $tool) {
+            $this->context->agent->tools()->register($tool);
         }
     }
 

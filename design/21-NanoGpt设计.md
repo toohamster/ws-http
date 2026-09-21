@@ -287,6 +287,7 @@ examples/cc-gpt/
   - 沙箱 root 覆盖链:`--work <dir>` > `<壳根>/.work/`;Sandbox 支持**多 root**(primary + extra,前缀校验遍历全部,§5);
   - `.gitignore`:`examples/cc-gpt/.work/`、`examples/cc-gpt/.runtime/`、`examples/cc-gpt/.settings.json`(含 key);
 - **ExecTool(系统命令执行,评审决策)**:需要(草稿区"建脚本→执行→存档"链的最后一环)。安全边界与 HttpGetTool 白名单模式同构:二进制白名单(空表=禁用)、cwd 锁定 .runtime、超时(proc_terminate)、输出截断(2KB);**FullPreset 默认不含**(文件工具无害可默认,命令执行须显式授权——壳装配时注入白名单开启)。
+  > **谱系重构(design/25,已实现)**:ExecTool 已特例化为 CommandToolBase 的"自由度拉满"端点(五层防线为其自由槽专属补偿);语义化命令工具(GrepTool 等)与描述文件装载(.tool.json)见 design/25——本节保留为历史决策记录,现状以 design/25 §1 谱系表为准。
 
 ### 8.1 ModelSource(模型目录来源,壳层契约)与 Preset 装配
 
