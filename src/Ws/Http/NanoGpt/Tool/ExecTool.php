@@ -4,37 +4,35 @@ declare(strict_types=1);
 
 namespace Ws\Http\NanoGpt\Tool;
 
-use Ws\Http\NanoGpt\ToolInterface;
+use Ws\Http\NanoGpt\CommandExecKernel;
 
 /**
- * 系统命令执行(design/21 §8 评审决策):草稿区"建脚本→执行→存档"链的执行环节。
+ * 系统命令执行(design/25 §1 谱系特例):CommandToolBase 的"自由度拉满"端点——
+ * 骨架为空(仅首 token 二进制名),可变部分 = 自由文本 cmd 槽。
  *
- * 五层防线(评审决策 2026-09-20,可信集 = claude code 同款只读/文本处理 + php/node):
- * 1. 二进制白名单(rm/mv/sh/sudo 等不在名单即拒);
- * 2. 兜底黑名单(即使白名单被扩,破坏性命令仍拒);
+ * 正因为槽位自由,需要**专属补偿防线**(其它 CommandTool 子类不需要):
+ * 1. 二进制白名单(运行期查表;rm/mv/sh/sudo 等不在名单即拒);
+ * 2. 兜底黑名单(基类构造期 + 本工具运行期双层);
  * 3. shell 操作符扫描(; | && || ` $( ) > < 防拼接出白名单外的命令);
  * 4. 任意代码入口拒绝(php -r / -B,sh -c,node -e 等——要跑代码只能先 write_file 到草稿区再执行脚本文件);
- * 5. cwd 锁定 + 超时 proc_terminate + 输出截断。
+ * 5. cwd 锁定 + 超时 + 输出截断(由 CommandExecKernel 承担,design/25 §2)。
  *
  * 诚实边界:防线 1–4 是"尽力保证"(进程级文件系统隔离纯 PHP 做不到绝对);
  * 文件读写删走内建文件工具(Sandbox 绝对边界),exec 仅用于运行草稿区脚本。
  * FullPreset 默认不含本工具——经 withExec() 显式授权(名单可加减)。
  */
-final class ExecTool implements ToolInterface
+final class ExecTool extends CommandToolBase
 {
     /** @var string[] 允许的可执行名;空表 = 禁用 */
     private $allowBinaries;
 
-    /** @var string[] 兜底黑名单(破坏性命令) */
-    private $denyBinaries;
-
     /** @var string[] 禁止的 shell 操作符 */
     private $denyOperators;
 
-    /** @var array<string, string> 任意代码入口:[flag => 适用二进制(前缀匹配, '*' = 全部)] */
+    /** @var array<string, string> 任意代码入口:[flag => 适用二进制(前缀匹配)] */
     private $denyFlags;
 
-    /** @var string 命令工作目录(草稿区绝对路径) */
+    /** @var string 命令工作目录(内核参数回读用) */
     private $cwd;
 
     /** @var int 超时秒 */
@@ -56,8 +54,9 @@ final class ExecTool implements ToolInterface
         ?array $denyBinaries = null,
         ?array $denyFlags = null
     ) {
+        parent::__construct(new CommandExecKernel($cwd, $timeout, $maxOutput), $denyBinaries);
+
         $this->allowBinaries = array_values($allowBinaries);
-        $this->denyBinaries = $denyBinaries ?? ['rm', 'mv', 'sh', 'bash', 'zsh', 'sudo', 'kill', 'chmod', 'chown', 'dd', 'mkfs', 'shutdown', 'reboot'];
         $this->denyOperators = [';', '|', '&&', '||', '`', '$(', '>', '<'];
         $this->denyFlags = $denyFlags ?? [
             '-r'  => 'php',      // php -r <code>
@@ -71,6 +70,19 @@ final class ExecTool implements ToolInterface
         $this->maxOutput = $maxOutput;
     }
 
+    /** 谱系特例:骨架 = 唯一自由槽 {cmd}(design/25 §1 表第三行) */
+    protected function template(): string
+    {
+        return '{cmd}';
+    }
+
+    protected function arguments(): array
+    {
+        return [
+            'cmd' => ['type' => 'string', 'description' => 'Command line to run; the program name must be on the allow-list', 'required' => true],
+        ];
+    }
+
     public function name(): string
     {
         return 'exec';
@@ -81,17 +93,11 @@ final class ExecTool implements ToolInterface
         return 'Execute an allowed program inside the runtime scratch directory and return stdout/stderr (truncated).';
     }
 
-    public function jsonSchema(): array
-    {
-        return [
-            'type'       => 'object',
-            'properties' => [
-                'cmd' => ['type' => 'string', 'description' => 'Command line to run; the program name must be on the allow-list'],
-            ],
-            'required'   => ['cmd'],
-        ];
-    }
-
+    /**
+     * 自由槽专属防线(1–4)先行,再走基类通用执行。
+     *
+     * @param array<string, mixed> $args
+     */
     public function execute(array $args): string
     {
         if ($this->allowBinaries === []) {
@@ -114,8 +120,8 @@ final class ExecTool implements ToolInterface
         $parts = preg_split('/\s+/', $cmd) ?: [];
         $binary = basename((string) $parts[0]);
 
-        // 防线 2:兜底黑名单
-        if (\in_array($binary, $this->denyBinaries, true)) {
+        // 防线 2:兜底黑名单(运行期——基类构造期只管骨架,此处管模型输入)
+        if (\in_array($binary, ['rm', 'mv', 'sh', 'bash', 'zsh', 'sudo', 'kill', 'chmod', 'chown', 'dd', 'mkfs', 'shutdown', 'reboot'], true)) {
             return sprintf('error: binary "%s" is denied (use the file tools for sandboxed file operations)', $binary);
         }
 
@@ -143,61 +149,9 @@ final class ExecTool implements ToolInterface
             }
         }
 
-        if (!\function_exists('proc_open')) {
-            return 'error: proc_open is not available';
-        }
-
-        $process = proc_open(
-            $cmd,
-            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
-            $pipes,
-            $this->cwd
-        );
-
-        if (!\is_resource($process)) {
-            return 'error: cannot spawn process';
-        }
-
-        $output = '';
-        $timedOut = false;
-        $started = microtime(true);
-        $exitCode = -1;
-
-        while (true) {
-            $status = proc_get_status($process);
-            $readable = [$pipes[1], $pipes[2]];
-            $write = $except = null;
-            if (@stream_select($readable, $write, $except, 0, 200000) > 0) {
-                foreach ($readable as $pipe) {
-                    $chunk = fread($pipe, 8192);
-                    if ($chunk !== false && $chunk !== '') {
-                        $output .= $chunk;
-                    }
-                }
-            }
-
-            if (!$status['running']) {
-                // drain 到 EOF(exitcode 在 running→false 转变后的一次 status 里才有效)
-                $output .= (string) stream_get_contents($pipes[1]) . (string) stream_get_contents($pipes[2]);
-                $exitCode = (int) $status['exitcode'];
-                break;
-            }
-
-            if (microtime(true) - $started >= $this->timeout) {
-                $timedOut = true;
-                proc_terminate($process);
-                break;
-            }
-        }
-
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        proc_close($process);
-
-        if ($timedOut) {
-            return sprintf('error: timed out after %ds; partial output: %s', $this->timeout, mb_substr($output, 0, $this->maxOutput));
-        }
-
-        return sprintf("exit: %d\noutput: %s", $exitCode, mb_substr(trim($output), 0, $this->maxOutput));
+        // 防线 1–4 完成 → 直接走内核(防线 5 已在内核)。
+        // 不经基类槽位元字符校验:ExecTool 历史行为允许引号等字符的参数(防线 1–4 已覆盖其威胁面),
+        // 收紧属行为变更——设计原则:C1 内核下沉保持行为不变(回归验收线)。
+        return (new CommandExecKernel($this->cwd, $this->timeout, $this->maxOutput))->run($cmd);
     }
 }
