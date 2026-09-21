@@ -9,6 +9,7 @@ use Ws\Http\NanoGpt\AgentException;
 use Ws\Http\NanoGpt\FullPreset;
 use Ws\Http\NanoGpt\MinimalPreset;
 use Ws\Http\NanoGpt\Sandbox;
+use Ws\Http\NanoGpt\Tool\DeleteFileTool;
 use Ws\Http\NanoGpt\Tool\ListDirTool;
 use Ws\Http\NanoGpt\Tool\ReadFileTool;
 use Ws\Http\NanoGpt\Tool\WriteFileTool;
@@ -105,6 +106,63 @@ final class SandboxTest extends TestCase
         self::assertSame($this->expected(), $sandbox->resolve(''));
     }
 
+    // ---------- 多 root(primary + extra) ----------
+
+    public function testExtraRootAccessibleViaAbsolutePath(): void
+    {
+        $runtime = sys_get_temp_dir() . '/ws-runtime-' . uniqid();
+        $sandbox = new Sandbox($this->root, [$runtime]);
+        $runtimeReal = (string) realpath($runtime); // macOS /tmp 是 /private/tmp 符号链接
+
+        self::assertSame($runtimeReal . '/script.js', $sandbox->resolve($runtime . '/script.js'));
+        self::assertContains($runtimeReal, $sandbox->extraRoots());
+    }
+
+    public function testRelativePathMapsToPrimary(): void
+    {
+        $runtime = sys_get_temp_dir() . '/ws-runtime2-' . uniqid();
+        $sandbox = new Sandbox($this->root, [$runtime]);
+
+        // 相对路径 → primary(.work);extra 靠绝对路径表达
+        self::assertSame($this->expected('out.txt'), $sandbox->resolve('out.txt'));
+    }
+
+    public function testExtraRootTraversalRejected(): void
+    {
+        $runtime = sys_get_temp_dir() . '/ws-runtime3-' . uniqid();
+        $outside = sys_get_temp_dir() . '/ws-outside3-' . uniqid();
+        mkdir($outside, 0777, true);
+        $sandbox = new Sandbox($this->root, [$runtime]);
+
+        try {
+            $sandbox->resolve($outside . '/secret.txt');
+            self::fail('expected AgentException 610');
+        } catch (AgentException $e) {
+            self::assertSame(610, $e->getCode());
+        } finally {
+            exec('rm -rf ' . escapeshellarg($outside) . ' ' . escapeshellarg($runtime));
+        }
+    }
+
+    public function testExtraRootSymlinkEscapeRejected(): void
+    {
+        $runtime = sys_get_temp_dir() . '/ws-runtime4-' . uniqid();
+        $outside = sys_get_temp_dir() . '/ws-outside4-' . uniqid();
+        mkdir($outside, 0777, true);
+        mkdir($runtime, 0777, true);
+        symlink($outside, $runtime . '/leak');
+        $sandbox = new Sandbox($this->root, [$runtime]);
+
+        try {
+            $sandbox->resolve($runtime . '/leak/x.txt');
+            self::fail('expected AgentException 610');
+        } catch (AgentException $e) {
+            self::assertSame(610, $e->getCode());
+        } finally {
+            exec('rm -rf ' . escapeshellarg($outside) . ' ' . escapeshellarg($runtime));
+        }
+    }
+
     // ---------- ToolRegistry ----------
 
     public function testRegistryRegisterGetHas(): void
@@ -198,12 +256,53 @@ final class SandboxTest extends TestCase
 
     // ---------- Preset ----------
 
-    public function testFullPresetBundlesFourTools(): void
+    public function testFullPresetBundlesFileToolsAndHttp(): void
     {
         $preset = new FullPreset(new Sandbox($this->root));
 
-        self::assertCount(4, $preset->tools());
+        $names = array_map(function ($tool) {
+            return $tool->name();
+        }, $preset->tools());
+
+        // 文件工具(含 DeleteFileTool,rm 的沙箱内替代)+ HttpGet(默认禁用形态);不含 ExecTool
+        self::assertSame(['read_file', 'write_file', 'list_dir', 'delete_file', 'http_get'], $names);
         self::assertNull($preset->modelSource());
+    }
+
+    public function testFullPresetWithExecOptIn(): void
+    {
+        $sandbox = new Sandbox($this->root);
+        $preset = (new FullPreset($sandbox))->withExec(FullPreset::defaultExecBinaries());
+
+        $names = array_map(function ($tool) {
+            return $tool->name();
+        }, $preset->tools());
+
+        self::assertContains('exec', $names);
+        self::assertContains('delete_file', $names);
+    }
+
+    public function testDeleteFileTool(): void
+    {
+        $sandbox = new Sandbox($this->root);
+        (new WriteFileTool($sandbox))->execute(['path' => 'a.txt', 'content' => 'x']);
+        (new WriteFileTool($sandbox))->execute(['path' => 'sub/b.txt', 'content' => 'y']);
+
+        $delete = new DeleteFileTool($sandbox);
+
+        // 删文件
+        self::assertStringStartsWith('ok:', $delete->execute(['path' => 'a.txt']));
+        self::assertFileDoesNotExist($this->root . '/a.txt');
+
+        // 非空目录拒绝(rm -rf 语义不可用,须逐层删)
+        self::assertStringContainsString('non-empty', $delete->execute(['path' => 'sub']));
+
+        // 空目录允许
+        self::assertStringStartsWith('ok:', $delete->execute(['path' => 'sub/b.txt']));
+        self::assertStringStartsWith('ok:', $delete->execute(['path' => 'sub']));
+
+        // 沙箱外拒绝
+        self::assertStringStartsWith('error:', $delete->execute(['path' => '../../../etc/passwd']));
     }
 
     public function testMinimalPresetIsPureChat(): void
@@ -225,6 +324,6 @@ final class SandboxTest extends TestCase
             }
         }
 
-        self::assertSame(['read_file', 'write_file', 'list_dir'], $registry->names());
+        self::assertSame(['read_file', 'write_file', 'list_dir', 'delete_file'], $registry->names());
     }
 }

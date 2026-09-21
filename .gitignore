@@ -7,3 +7,8 @@ Thumbs.db
 .phpunit.result.cache
 .claude/settings.local.json
 config.php
+# cc-gpt 壳三区(design/21 §8:配置/产出沙箱/草稿区,均不入库)
+examples/cc-gpt/.settings.json
+examples/cc-gpt/.work/
+examples/cc-gpt/.runtime/
+examples/cc-gpt/config.php

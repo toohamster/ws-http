@@ -224,7 +224,7 @@ final class Conversation
 }
 ```
 
-- 纯内存状态,首版不做持久化(session.json 列扩展预留);
+- 纯内存状态;会话持久化与长期记忆见 §6.1/§6.2(独立需求,评审记录:N3 后单独立项);
 - messages 保持 OpenAI wire 格式纯数组,序列化即请求体,无转换层。
 
 ## 7. 异常与错误码(追加 design/10 §5)
@@ -238,6 +238,21 @@ final class Conversation
 | 603 | 工具注册重名 |
 | 604 | ChatEndpoint 响应结构不符合预期(body->choices[0]->message 缺失) |
 | 610 | Sandbox 路径越界 |
+
+### 7.1 记忆(独立需求,评审记录 2026-09-20)
+
+"记忆"拆为两个正交问题,组件态、生命周期、失效策略完全不同:
+
+| | 会话持久化(短期) | 跨会话知识(长期) |
+| --- | --- | --- |
+| 形态 | messages[] 原样序列化(session json,落 .runtime——草稿区,过期即弃) | 显式记忆条目(memory.json,落 .work——用户明确要求保留,同产出物生命周期) |
+| 消费 | /resume 原样回放 | system prompt 附加段(Memory::systemPromptBlock,条目数上限) |
+| 失效 | /clear 或过期删除 | 显式管理(/memory remember/forget/list) |
+
+- 组件态:ConversationStoreInterface + FileStore(~80 行);Memory(remember/recall/forget/systemPromptBlock);
+- **不做自动提炼**(每次对话尾让模型总结存档):成本/延迟、错记永久污染;只做用户显式写(模型经工具自主写列预留);
+- Agent loop 零感知:记忆是 Conversation/壳的职责,Agent 只消费 messages;
+- **单独立项**:N3(壳)交付后作为独立需求出设计+实现,不并入本次改进。
 
 ## 8. CLI 应用壳(examples/cc-gpt,不在本组件内)
 
@@ -261,7 +276,17 @@ examples/cc-gpt/
 - **配置三层**:env(`CC_GPT_API_KEY`) > `config.php` > 提示运行 /init;
 - **/model 免费模型选择**:`models()->list()` → `$body->data[]` 过滤 `id` 含 "free",展示 id/name/pricing;
 - **/context**:读 `Conversation::usage()` 展示跨轮累积 + 当前模型 + 已注册工具列表;
-- 运行时工作目录:`cc-gpt/`(cwd 下,Sandbox root 与 .settings.json 同处),`.gitignore` 追加 `cc-gpt/`。
+- **目录布局(评审修订 2026-09-20,勿反复)**:壳项目根 = `examples/cc-gpt/`(执行时 cd 到该目录,与调用者 cwd 无关);三区分离:
+
+  | 路径 | 语义 | 清理语义 |
+  | --- | --- | --- |
+  | `.settings.json` | 应用配置(/init 写入;apiKey/baseUrl/model) | 不轻易删 |
+  | `.work/` | **沙箱 root**(primary):文件工具活动区,agent 产出物存档 | 用户显式清理(拿走产出后) |
+  | `.runtime/` | **草稿区**(extra root):中间脚本/临时文件(如"从 json 提取项"的脚本在此建立、执行、结果存档回 .work) | 内容可随时删,目录常驻(运行时自动创建) |
+
+  - 沙箱 root 覆盖链:`--work <dir>` > `<壳根>/.work/`;Sandbox 支持**多 root**(primary + extra,前缀校验遍历全部,§5);
+  - `.gitignore`:`examples/cc-gpt/.work/`、`examples/cc-gpt/.runtime/`、`examples/cc-gpt/.settings.json`(含 key);
+- **ExecTool(系统命令执行,评审决策)**:需要(草稿区"建脚本→执行→存档"链的最后一环)。安全边界与 HttpGetTool 白名单模式同构:二进制白名单(空表=禁用)、cwd 锁定 .runtime、超时(proc_terminate)、输出截断(2KB);**FullPreset 默认不含**(文件工具无害可默认,命令执行须显式授权——壳装配时注入白名单开启)。
 
 ### 8.1 ModelSource(模型目录来源,壳层契约)与 Preset 装配
 
@@ -297,13 +322,13 @@ final class StaticModelSource implements ModelSourceInterface {}     // config.p
 
 | 用例组 | 覆盖 |
 | --- | --- |
-| Sandbox | 合法路径 / `../` 穿越(610)/ 符号链接指向 root 外(610)/ 不存在的写路径归一化 |
+| Sandbox | 合法路径 / `../` 穿越(610)/ 符号链接指向 root 外(610)/ 不存在的写路径归一化 / 多 root(primary + extra 各自可达与互斥) |
 | Agent loop(mock,同 PluginRegistryTest 的 requestOn 替身模式) | 双响应序列:先 tool_calls → 工具执行 → role=tool 回填 → 二次调用 → 文本;usage 累积;maxTurns 触发 601;未知名工具 602;finish_reason=length |
 | ToolRegistry | 注册/重名 603/未知名 602/jsonSchemas 结构 |
-| 内建工具 | Write→Read 往返;ListDir;HttpGet 白名单拒绝 |
+| 内建工具 | Write→Read 往返;ListDir;HttpGet 白名单拒绝;ExecTool 白名单拒绝/超时/成功三态 |
 | Conversation | 追加/usage 累积/reset |
-| Preset | FullPreset 含 4 工具 + modelSource;MinimalPreset 零工具 + null;自定义 Preset 增删工具后 jsonSchemas 生效 |
-| 壳(tests/Unit/Ccgpt/) | CommandRegistry 注册/未知名;Settings 读写往返、缺字段;ModelSource 两内建;不测 UI 与真实网络 |
+| Preset | FullPreset 含 4 工具 + modelSource(不含 ExecTool);MinimalPreset 零工具 + null;自定义 Preset 增删工具后 jsonSchemas 生效 |
+| 壳(tests/Unit/Ccgpt/) | CommandRegistry 注册/未知名;Settings 读写往返、缺字段;ModelSource 两内建;--work 覆盖与默认 .work 定位;不测 UI 与真实网络 |
 | 隔离性 | core/functional/Plugin 无对 `Ws\Http\NanoGpt\` 的引用(沿用 design/17 §6 隔离测试模式) |
 
 ## 10. 实施步骤(N1–N5,测试先行)

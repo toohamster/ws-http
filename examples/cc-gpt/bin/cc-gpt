@@ -1,0 +1,43 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * cc-gpt:基于 Ws\Http\NanoGpt 组件的 agent CLI(design/21 §8)。
+ *
+ * 用法:
+ *   cd examples/cc-gpt && /usr/local/bin/php74 bin/cc-gpt [--work <dir>]
+ *
+ * 命令:/init /model /context /help /quit;其余输入发给模型。
+ * 目录三区:.settings.json(壳根)/ .work/(沙箱 root,--work 可覆盖)/ .runtime/(草稿区)。
+ * 配置:env(CC_GPT_API_KEY / CC_GPT_BASE_URL)> .settings.json(/init 写入)。
+ */
+
+use CcGpt\Application;
+
+require __DIR__ . '/../../../vendor/autoload.php';
+
+// 壳自身 namespace(composer PSR-4 覆盖不到 examples):注册进 composer 正在用的 loader
+// 映射级:文件按 namespace 短路径存放(namespace CcGpt;→ src/CcGpt/),前缀直接对 src/CcGpt
+$registeredLoaders = \Composer\Autoload\ClassLoader::getRegisteredLoaders();
+$ccGptLoader = reset($registeredLoaders);
+$ccGptLoader->addPsr4('CcGpt\\', __DIR__ . '/../src/CcGpt');
+
+// --work <dir>:沙箱 root 覆盖(默认 <壳根>/.work)
+$repoRoot = dirname(__DIR__);
+$workOverride = null;
+$argvCopy = $argv;
+array_shift($argvCopy);
+foreach ($argvCopy as $i => $arg) {
+    if ($arg === '--work' && isset($argvCopy[$i + 1])) {
+        $workOverride = $argvCopy[$i + 1];
+        break;
+    }
+    if (strpos($arg, '--work=') === 0) {
+        $workOverride = substr($arg, strlen('--work='));
+        break;
+    }
+}
+
+exit((new Application($repoRoot, null, null, $workOverride !== null ? (string) realpath($workOverride) : null))->run());
