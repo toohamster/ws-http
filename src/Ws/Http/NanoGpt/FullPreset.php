@@ -99,6 +99,20 @@ final class FullPreset implements Preset
         return ['find', 'grep', 'sed', 'cat', 'head', 'tail', 'wc', 'sort', 'uniq', 'jq', 'diff', 'php', 'node'];
     }
 
+    /**
+     * C5b 网络工具族注入(验证/提取/POST,与 GET 同白名单授权面):
+     * 白名单非空才追加(空 = http_get 也禁用,三工具无从授权)。
+     *
+     * @param string[] $allowHosts
+     */
+    public function withHttpTools(array $allowHosts): self
+    {
+        $clone = clone $this;
+        $clone->httpAllowHosts = array_map('strtolower', array_values($allowHosts));
+
+        return $clone;
+    }
+
     public function tools(): array
     {
         $tools = [
@@ -108,6 +122,13 @@ final class FullPreset implements Preset
             new Tool\DeleteFileTool($this->sandbox),
             new Tool\ApiGetTool($this->httpAllowHosts, $this->http),
         ];
+
+        if ($this->httpAllowHosts !== []) {
+            // C5b:验证/提取/POST 与 GET 同授权面(白名单一致;POST body 走文件形态,结构性安全)
+            $tools[] = new Tool\ApiTestTool($this->httpAllowHosts, $this->http);
+            $tools[] = new Tool\ApiFetchTool($this->httpAllowHosts, $this->http);
+            $tools[] = new Tool\ApiJsonPostTool($this->httpAllowHosts, $this->http);
+        }
 
         if ($this->execAllowBinaries !== null) {
             $tools[] = new Tool\ExecTool(

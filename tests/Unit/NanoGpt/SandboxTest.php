@@ -264,9 +264,25 @@ final class SandboxTest extends TestCase
             return $tool->name();
         }, $preset->tools());
 
-        // 文件工具(含 DeleteFileTool,rm 的沙箱内替代)+ HttpGet(默认禁用形态);不含 ExecTool
+        // 文件工具(含 DeleteFileTool,rm 的沙箱内替代)+ ApiGet(默认禁用形态);不含 ExecTool/HTTP 族
         self::assertSame(['read_file', 'write_file', 'list_dir', 'delete_file', 'http_get'], $names);
         self::assertNull($preset->modelSource());
+    }
+
+    public function testWithHttpToolsAddsVerificationAndFetch(): void
+    {
+        $sandbox = new Sandbox($this->root);
+        $preset = (new FullPreset($sandbox))->withHttpTools(['api.example.com']);
+
+        $names = array_map(function ($tool) {
+            return $tool->name();
+        }, $preset->tools());
+
+        // C5b:白名单非空 → 网络族三工具随 GET 一起授权
+        self::assertSame(
+            ['read_file', 'write_file', 'list_dir', 'delete_file', 'http_get', 'api_test', 'api_fetch', 'api_json_post'],
+            $names
+        );
     }
 
     public function testFullPresetWithExecOptIn(): void

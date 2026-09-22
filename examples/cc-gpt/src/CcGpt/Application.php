@@ -135,13 +135,24 @@ final class Application
     }
 
     /**
-     * 出厂默认预设(design/21 §8 评审决策):文件工具(含 delete_file,Sandbox 绝对边界)
-     * + HttpGet(白名单空 = 禁用)+ ExecTool 显式开启(claude code 同款只读集,php/node 跑 .runtime 脚本)。
+     * 出厂默认预设(design/21 §8 + design/25 §4.5 评审决策):
+     * - 文件工具(含 delete_file,Sandbox 绝对边界)+ ApiGetTool(白名单空 = 禁用);
+     * - ExecTool 显式开启(claude code 同款只读集,php/node 跑 .runtime 脚本);
+     * - C5b 网络工具:验证(api_test)与提取(api_fetch)默认随 GET 白名单开启;
+     *   api_json_post 同白名单(body 走文件形态,结构性安全)。
      */
     private function defaultPreset(Sandbox $sandbox, string $baseUrl): ?Preset
     {
-        return (new \Ws\Http\NanoGpt\FullPreset($sandbox, null, []))
+        $preset = (new \Ws\Http\NanoGpt\FullPreset($sandbox, null, []))
             ->withExec(\Ws\Http\NanoGpt\FullPreset::defaultExecBinaries(), $this->context->runtimeDir);
+
+        // C5b:GET 白名单非空时追加验证/提取/POST 三工具(与 http_get 同一白名单授权面)
+        $hosts = $this->context->settings->get('httpAllowHosts');
+        if (\is_array($hosts) && $hosts !== []) {
+            $preset = $preset->withHttpTools(array_values($hosts));
+        }
+
+        return $preset;
     }
 
     /**
