@@ -9,6 +9,7 @@
 | --- | --- |
 | [php74-syntax.md](php74-syntax.md) | PHP 7.4 语法特性矩阵(php74 -l 实测):可用/不可用/陷阱,写代码前必查 |
 | [debugging.md](debugging.md) | 调试根因案例:parse_url 字节安全、http_build_query 编码、json errno、方法论 |
+| [instruction-discipline.md](instruction-discipline.md) | **指令执行纪律(严重教训 2026-09-22,每次会话必读)**:指令范围=字面不扩大、确认闸门机械规则、质问=指令已下达、复合指令逐项执行;执行前自检清单 |
 
 ## 环境与工具
 
