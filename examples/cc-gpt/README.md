@@ -44,6 +44,20 @@ php <repo>/examples/cc-gpt/bin/cc-gpt
 | http_get | 域名白名单(默认空 = 禁用) |
 | exec | 五层防线:二进制白名单(默认禁 rm/mv/sh/sudo)+ 兜底黑名单 + shell 操作符拒绝 + 任意代码入口拒绝(php -r / node -e 等——要跑代码先写脚本文件到 .runtime)+ 超时/截断。**尽力保证**,文件操作请走文件工具 |
 
+## 工作原理:模型怎么知道调用工具?
+
+一句话:**决策在模型,执行在 Agent**。你输入一句话后:
+
+```
+你 → 请求①[对话 + 工具说明书] → 模型语义判断"需要读文件" → 返回 tool_calls
+  → Agent 执行 read_file(安全防线在这里) → 结果回填进对话
+  → 请求②[含工具结果] → 模型组织最终回复 → 你看到答案
+```
+
+对使用者的实际影响:模型不调用你的工具 → 先查工具的 `description()` 质量;参数填错 → 查参数 schema;连调不停 → `maxTurns`(默认 8)兜底。
+
+完整讲解(六站旅程/常见误解/写好说明书的自检清单)见 [docs/nanogpt-tool-invocation.md](../../docs/nanogpt-tool-invocation.md)。
+
 ## 扩展指南
 
 ### 加一个命令(壳扩展点)
