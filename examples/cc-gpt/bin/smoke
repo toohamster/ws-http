@@ -10,10 +10,13 @@ declare(strict_types=1);
  *   链2 chat:  一轮对话 → 响应结构 + usage
  *   链3 tools: 带工具的 agent loop → tool_calls → 执行 → 回填 → 文本
  *
- * 用法(key 只走环境变量,不落盘):
- *   CC_GPT_API_KEY=<key> /usr/local/bin/php74 examples/cc-gpt/bin/smoke [modelId]
+ * 配置与壳同源(design/21 §8 配置三层):env(CC_GPT_API_KEY / CC_GPT_BASE_URL)
+ * > examples/cc-gpt/.settings.json(/init 写入)。
  *
- * 可选 env:CC_GPT_BASE_URL(默认 https://orcarouter.ai/v1)、CC_GPT_SMOKE_MODEL(跳过链1自动选择)。
+ * 用法:
+ *   /usr/local/bin/php74 examples/cc-gpt/bin/smoke [modelId]
+ *
+ * 可选 env:CC_GPT_SMOKE_MODEL(跳过链1自动选择)。
  * 退出码:0 三链全过;1 任一链失败(失败点已打印)。
  */
 
@@ -23,19 +26,37 @@ use Ws\Http\Plugin\OpenAI\Client;
 
 require __DIR__ . '/../../../vendor/autoload.php';
 
+$shellRoot = dirname(__DIR__);
+
+// 配置取值链与 Application::bootstrapAgent 一致:env > .settings.json
+$settingsData = [];
+$raw = @file_get_contents($shellRoot . '/.settings.json');
+if ($raw !== false) {
+    $decoded = json_decode($raw, true);
+    if (is_array($decoded)) {
+        $settingsData = $decoded;
+    }
+}
+
 $apiKey = getenv('CC_GPT_API_KEY');
 if ($apiKey === false || $apiKey === '') {
-    fwrite(STDERR, "error: CC_GPT_API_KEY not set\n");
+    $apiKey = $settingsData['apiKey'] ?? null;
+}
+if (!is_string($apiKey) || $apiKey === '') {
+    fwrite(STDERR, "error: no API key (set CC_GPT_API_KEY or run /init in cc-gpt)\n");
     exit(1);
 }
 $apiKey = (string) $apiKey;
 
 $baseUrl = getenv('CC_GPT_BASE_URL');
 if ($baseUrl === false || $baseUrl === '') {
-    $baseUrl = 'https://orcarouter.ai/v1';
+    $baseUrl = $settingsData['baseUrl'] ?? null;
+}
+if (!is_string($baseUrl) || $baseUrl === '') {
+    $baseUrl = 'https://api.openai.com/v1';
 }
 
-$client = new Client($apiKey, null, (string) $baseUrl);
+$client = new Client($apiKey, null, $baseUrl);
 $results = [];
 
 /**
@@ -62,7 +83,7 @@ try {
             $freeModels[] = $id;
             // 能力字段探测(design/24 §6.1 校准输入):网关扩展字段有则记
             $capFields[$id] = [
-                'context_length'      => $m->context_length ?? $m->context_window ?? null,
+                'context_length'        => $m->context_length ?? $m->context_window ?? null,
                 'max_completion_tokens' => $m->max_completion_tokens ?? $m->max_output_tokens ?? null,
             ];
         }
@@ -77,7 +98,6 @@ $model = $argv[1] ?? (getenv('CC_GPT_SMOKE_MODEL') ?: ($freeModels[0] ?? ''));
 if ($model === '') {
     record('chat', false, 'no model available (free list empty)');
     record('tools', false, 'no model available (free list empty)');
-    // 汇总
     $failed = 0;
     foreach ($results as [$c, $p, $d]) {
         if (!$p) {
@@ -106,7 +126,7 @@ try {
 
 // ── 链3 tools ─────────────────────────────────────────────────
 // 冒烟沙箱:examples/cc-gpt/.runtime/smoke(草稿区,目录常驻语义一致)
-$smokeRoot = dirname(__DIR__) . '/.runtime/smoke';
+$smokeRoot = $shellRoot . '/.runtime/smoke';
 if (!is_dir($smokeRoot) && !@mkdir($smokeRoot, 0755, true) && !is_dir($smokeRoot)) {
     record('tools', false, "cannot create smoke sandbox {$smokeRoot}");
 } else {
