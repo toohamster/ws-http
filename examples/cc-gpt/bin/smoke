@@ -1,0 +1,155 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * N4 集成冒烟(design/21 §10):orcarouter 三链验证。
+ *
+ *   链1 models:GET /models → 过滤 free → 采集能力字段(context_length / max_completion_tokens)
+ *   链2 chat:  一轮对话 → 响应结构 + usage
+ *   链3 tools: 带工具的 agent loop → tool_calls → 执行 → 回填 → 文本
+ *
+ * 用法(key 只走环境变量,不落盘):
+ *   CC_GPT_API_KEY=<key> /usr/local/bin/php74 examples/cc-gpt/bin/smoke [modelId]
+ *
+ * 可选 env:CC_GPT_BASE_URL(默认 https://orcarouter.ai/v1)、CC_GPT_SMOKE_MODEL(跳过链1自动选择)。
+ * 退出码:0 三链全过;1 任一链失败(失败点已打印)。
+ */
+
+use Ws\Http\NanoGpt\Agent;
+use Ws\Http\NanoGpt\Tool\WriteFileTool;
+use Ws\Http\Plugin\OpenAI\Client;
+
+require __DIR__ . '/../../../vendor/autoload.php';
+
+$apiKey = getenv('CC_GPT_API_KEY');
+if ($apiKey === false || $apiKey === '') {
+    fwrite(STDERR, "error: CC_GPT_API_KEY not set\n");
+    exit(1);
+}
+$apiKey = (string) $apiKey;
+
+$baseUrl = getenv('CC_GPT_BASE_URL');
+if ($baseUrl === false || $baseUrl === '') {
+    $baseUrl = 'https://orcarouter.ai/v1';
+}
+
+$client = new Client($apiKey, null, (string) $baseUrl);
+$results = [];
+
+/**
+ * 记录一条链的结果并打印。
+ */
+function record(string $chain, bool $passed, string $detail): void
+{
+    $results[] = [$chain, $passed, $detail];
+    printf("[%s] %s %s\n", $passed ? 'PASS' : 'FAIL', $chain, $detail);
+}
+
+// ── 链1 models ────────────────────────────────────────────────
+$freeModels = [];
+$capFields = [];
+try {
+    $response = $client->models()->list();
+    $body = $response->body;
+    if (is_object($body) && isset($body->data) && is_array($body->data)) {
+        foreach ($body->data as $m) {
+            $id = (string) ($m->id ?? '');
+            if ($id === '' || stripos($id, 'free') === false) {
+                continue;
+            }
+            $freeModels[] = $id;
+            // 能力字段探测(design/24 §6.1 校准输入):网关扩展字段有则记
+            $capFields[$id] = [
+                'context_length'      => $m->context_length ?? $m->context_window ?? null,
+                'max_completion_tokens' => $m->max_completion_tokens ?? $m->max_output_tokens ?? null,
+            ];
+        }
+    }
+    record('models', $freeModels !== [], count($freeModels) . ' free models; sample: ' . (json_encode(array_slice($capFields, 0, 3), JSON_UNESCAPED_SLASHES) ?: 'n/a'));
+} catch (\Throwable $e) {
+    record('models', false, 'exception: ' . $e->getMessage());
+}
+
+// 选模型:参数 > env > free 列表第一个
+$model = $argv[1] ?? (getenv('CC_GPT_SMOKE_MODEL') ?: ($freeModels[0] ?? ''));
+if ($model === '') {
+    record('chat', false, 'no model available (free list empty)');
+    record('tools', false, 'no model available (free list empty)');
+    // 汇总
+    $failed = 0;
+    foreach ($results as [$c, $p, $d]) {
+        if (!$p) {
+            $failed++;
+        }
+    }
+    exit($failed > 0 ? 1 : 0);
+}
+printf("using model: %s\n", $model);
+
+// ── 链2 chat ──────────────────────────────────────────────────
+try {
+    $response = $client->chat()->create(
+        [['role' => 'user', 'content' => 'Reply with exactly one word: pong']],
+        $model
+    );
+    $body = $response->body;
+    $content = is_object($body) ? (string) ($body->choices[0]->message->content ?? '') : '';
+    $usage = is_object($body) && is_object($body->usage ?? null)
+        ? sprintf('usage(total=%d)', (int) $body->usage->total_tokens)
+        : 'usage(missing)';
+    record('chat', $content !== '', sprintf('model=%s %s content=%s', $model, $usage, trim($content) !== '' ? '"' . trim(mb_substr($content, 0, 60)) . '"' : '(empty)'));
+} catch (\Throwable $e) {
+    record('chat', false, 'exception: ' . $e->getMessage());
+}
+
+// ── 链3 tools ─────────────────────────────────────────────────
+// 冒烟沙箱:examples/cc-gpt/.runtime/smoke(草稿区,目录常驻语义一致)
+$smokeRoot = dirname(__DIR__) . '/.runtime/smoke';
+if (!is_dir($smokeRoot) && !@mkdir($smokeRoot, 0755, true) && !is_dir($smokeRoot)) {
+    record('tools', false, "cannot create smoke sandbox {$smokeRoot}");
+} else {
+    try {
+        $agent = new Agent($client, $model, 4);
+        $agent->tools()->register(new WriteFileTool(new \Ws\Http\NanoGpt\Sandbox($smokeRoot)));
+
+        $toolCalls = [];
+        $finalText = '';
+        foreach ($agent->run('Use the write_file tool to create smoke.txt containing exactly "smoke-ok". Then reply with exactly one word: done.') as $event) {
+            if ($event['type'] === 'tool_call') {
+                $toolCalls[] = $event['name'];
+            } elseif ($event['type'] === 'text') {
+                $finalText = $event['text'];
+            }
+        }
+
+        $written = @file_get_contents($smokeRoot . '/smoke.txt');
+        $ok = in_array('write_file', $toolCalls, true) && $written === 'smoke-ok';
+        record('tools', $ok, sprintf(
+            'model=%s tool_calls=[%s] file=%s final=%s',
+            $model,
+            implode(',', $toolCalls),
+            $written === 'smoke-ok' ? 'smoke-ok' : var_export($written, true),
+            trim($finalText) !== '' ? '"' . trim(mb_substr($finalText, 0, 40)) . '"' : '(none)'
+        ));
+        if (!$ok && $toolCalls === []) {
+            fwrite(STDERR, "note: model produced no tool_calls — this model may not support function calling (design/21 N4 risk item)\n");
+        }
+    } catch (\Ws\Http\NanoGpt\AgentException $e) {
+        record('tools', false, sprintf('AgentException [%d]: %s', $e->getCode(), $e->getMessage()));
+    } catch (\Throwable $e) {
+        record('tools', false, 'exception: ' . $e->getMessage());
+    }
+}
+
+// ── 汇总 ──────────────────────────────────────────────────────
+$failed = 0;
+foreach ($results as [$chain, $passed, $detail]) {
+    if (!$passed) {
+        $failed++;
+    }
+}
+printf("\nsummary: %d/%d chains passed\n", count($results) - $failed, count($results));
+
+exit($failed > 0 ? 1 : 0);

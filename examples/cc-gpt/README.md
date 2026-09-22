@@ -28,6 +28,14 @@ php <repo>/examples/cc-gpt/bin/cc-gpt
 
 其余输入原样发给模型(agent loop:文本回复或工具调用,事件流渲染)。
 
+### 集成冒烟(N4,design/21 §10)
+
+```bash
+CC_GPT_API_KEY=<key> /usr/local/bin/php74 examples/cc-gpt/bin/smoke [modelId]
+```
+
+三链验证:models(free 目录 + 能力字段)/ chat(一轮对话 + usage)/ tools(工具循环全链)。退出码 0 = 全过。
+
 ## 目录三区(壳项目根 = examples/cc-gpt,与调用者 cwd 无关)
 
 ```
