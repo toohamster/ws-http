@@ -106,7 +106,7 @@ final class FullPreset implements Preset
             new Tool\WriteFileTool($this->sandbox),
             new Tool\ListDirTool($this->sandbox),
             new Tool\DeleteFileTool($this->sandbox),
-            new Tool\HttpGetTool($this->httpAllowHosts, $this->http),
+            new Tool\ApiGetTool($this->httpAllowHosts, $this->http),
         ];
 
         if ($this->execAllowBinaries !== null) {
