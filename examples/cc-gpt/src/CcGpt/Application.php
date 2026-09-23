@@ -100,7 +100,7 @@ final class Application
             $apiKey = $this->context->settings->get('apiKey');
         }
         if (!\is_string($apiKey) || $apiKey === '') {
-            $this->output->writeln('no API key yet — run /init <key> [baseUrl]', 'yellow');
+            $this->output->writeln('no API key yet — run /init (adapter menu → key/url)', 'yellow');
 
             return;
         }
@@ -115,7 +115,10 @@ final class Application
         $this->context->model = $model;
         $this->context->agent = new Agent($client, $model !== '' ? $model : 'gpt-4o-mini');
 
-        $preset = $preset ?? $this->defaultPreset($sandbox, $baseUrl);
+        $preset = $preset ?? $this->defaultPreset(
+            $sandbox,
+            $this->modelSource($client)
+        );
         if ($preset !== null) {
             foreach ($preset->tools() as $tool) {
                 $this->context->agent->tools()->register($tool);
@@ -135,15 +138,44 @@ final class Application
     }
 
     /**
+     * settings.adapter 显式分派(design/21 §8.2 三次评审):/init 选择时写入,
+     * 此处按 id 查表定位;无选择 → settings.models 手写档案或 null(手动 /model <id>)。
+     * 无 host 字符串嗅探(已否决)。
+     */
+    private function modelSource(Client $client): ?\CcGpt\ModelProvider\ModelSourceInterface
+    {
+        $adapterId = $this->context->settings->get('adapter');
+        if (\is_string($adapterId) && $adapterId !== '') {
+            $class = null;
+            foreach (\CcGpt\Command\Init::adapterClasses() as $candidate) {
+                if ($candidate::id() === $adapterId) {
+                    $class = $candidate;
+                    break;
+                }
+            }
+            if ($class !== null) {
+                return new $class($client);
+            }
+        }
+
+        $models = $this->context->settings->get('models');
+        if (\is_array($models) && $models !== []) {
+            return new \CcGpt\ModelProvider\StaticAdapter(array_values($models));
+        }
+
+        return null; // 手动 /model <id>(design/21 §8.1 契约)
+    }
+
+    /**
      * 出厂默认预设(design/21 §8 + design/25 §4.5 评审决策):
      * - 文件工具(含 delete_file,Sandbox 绝对边界)+ ApiGetTool(白名单空 = 禁用);
      * - ExecTool 显式开启(claude code 同款只读集,php/node 跑 .runtime 脚本);
      * - C5b 网络工具:验证(api_test)与提取(api_fetch)默认随 GET 白名单开启;
      *   api_json_post 同白名单(body 走文件形态,结构性安全)。
      */
-    private function defaultPreset(Sandbox $sandbox, string $baseUrl): ?Preset
+    private function defaultPreset(Sandbox $sandbox, ?\CcGpt\ModelProvider\ModelSourceInterface $modelSource): ?Preset
     {
-        $preset = (new \Ws\Http\NanoGpt\FullPreset($sandbox, null, []))
+        $preset = (new \Ws\Http\NanoGpt\FullPreset($sandbox, $modelSource, []))
             ->withExec(\Ws\Http\NanoGpt\FullPreset::defaultExecBinaries(), $this->context->runtimeDir);
 
         // C5b:GET 白名单非空时追加验证/提取/POST 三工具(与 http_get 同一白名单授权面)

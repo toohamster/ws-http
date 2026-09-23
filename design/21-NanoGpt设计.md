@@ -319,6 +319,92 @@ final class StaticModelSource implements ModelSourceInterface {}     // config.p
 | 命令差异 | 壳 | CommandInterface + CommandRegistry |
 | 出厂内容整体换装/禁用 | 两层 | Preset(§4.2,组件段 tools+modelSource)+ 壳按 Preset 装配命令 |
 
+### 8.2 ModelProvider 适配器(评审修订 2026-09-23,N4 冒烟暴露的架构错误纠正)
+
+**暴露的问题**:N3 实现时 `Application::defaultPreset()` 无条件注入 OrcaRouterModelSource——orcarouter 的服务特定逻辑(`id 含 free` 过滤)被固化成**所有服务**的通用默认。任何其他服务(百炼/自建网关/OpenAI 官方)的 `/model` 都被迫走 orcarouter 语义。这违背本节原始契约("模型来源随服务不同,壳按需注入")。
+
+**评审过程(三轮方案收敛,根因复盘)**:
+
+1. 初修(字符串配置字段 `modelSource: "orcarouter"`)→ 否决:壳变成已知服务硬编码 switch,隐式契约;
+2. 二修(ServiceProfileInterface 识别+工厂+注册表+fallback 槽位)→ 否决:为示例壳的几行装配建框架,过度设计;且 host 识别对"使用者知道自己在用什么服务"的场景是多余负担;
+3. 根因复盘:**服务绑定的时刻是 /init**——使用者配置 baseUrl 进 .settings.json 的那一刻,服务身份已确定,此后服务特定行为应能从 baseUrl 事实推导,使用者不应再改装配代码或声明字段;
+4. 使用者点破关键:`/init` 就是设置模型服务商的地方,服务商适配应当有**专属路径**——适配器模式,而非散落的"来源类"。
+
+**决策(修订 2026-09-23 三次评审:分派 = /init 显式选择,host 嗅探否决)**:
+
+实施时暴露系列错误并逐级纠正(详见记忆案例 7):① 两个适配器塞一文件违反 PSR-4;② **伪适配器**——无抽象层,容错/规范化等共享语义下沉具体类,适配器退化成普通类,名实不符;③ 分派用 `strpos($host, 'orcarouter')` 字符串嗅探——**脆弱魔法**(换域名/代理即失效)、服务知识散落代码、测试只能以字符串比对钉住(测起来别扭的设计=设计错了)。
+
+最终确立:**交互流决定内部分派**——/init 是设置模型服务商的地方,流程 = 先列适配器菜单、用户选择、再按所选适配器收集 key/url:
+
+```
+/init
+  ① 列出系统支持的适配器:1) orcarouter(free 过滤)  2) generic(OpenAI 兼容,全量列表)
+  ② 用户选择 → 按该适配器自报的输入项(prompts)收集 key / baseUrl
+  ③ 写入 .settings.json:{ adapter: "orcarouter", apiKey: ..., baseUrl: ... }
+```
+
+**三层适配器结构**(接口 + 抽象类 + 具体适配器)与适配器自报契约:
+
+```php
+// 落位:examples/cc-gpt/src/CcGpt/ModelProvider/(PSR-4:一文件一类,文件名=类名)
+// 契约(Target,§8.1 不变):壳与 /model 只认契约,不感知适配器数量与对象
+interface ModelSourceInterface { public function models(): array; }
+
+// 模板层:骨架 = 调用 → 容错 → 规范化(final 锁定)+ 自报契约(菜单/收集/定位用)
+abstract class AbstractServiceAdapter implements ModelSourceInterface
+{
+    final public function models(): array   // final:骨架不可改写
+    {
+        try {
+            return $this->normalize($this->fetch());
+        } catch (\Throwable $e) {
+            return [];                       // 容错是共享语义,上提至此
+        }
+    }
+    abstract protected function fetch(): array;               // 服务调用(差异)
+    abstract protected function normalize(array $raw): array; // 过滤/映射(差异)
+
+    // —— 自报契约(静态;/init 菜单与 settings.adapter 定位的中性依据)——
+    abstract public static function id(): string;      // 选择标识(写进 settings.adapter)
+    abstract public static function label(): string;   // 菜单展示("orcarouter(free 过滤)")
+    /** @return array<int, array{key: string, prompt: string, default?: string}> 输入项自述 */
+    abstract public static function prompts(): array;  // 如 apiKey/baseUrl(各适配器不同)
+}
+
+// 具体适配器(三个):
+final class OrcaRouterAdapter extends AbstractServiceAdapter {}  # /models 解析 + free 过滤
+final class GenericAdapter  extends AbstractServiceAdapter {}    # OpenAI 兼容全量列表(不过滤)
+final class StaticAdapter   extends AbstractServiceAdapter {}    # 手写档案(settings.models;**不进 /init 菜单**,仅手配)
+```
+
+- 适配器描述表(/init 内一个中性表,id → 类名):新适配器 = 一个类 + 表加一行,不碰其他代码(壳层开闭);
+- 分派 = 按 `settings.adapter` 查表定位适配器 → ModelSourceInterface;**无 host 字符串嗅探**(已否决);
+- **存量兼容**:缺 `adapter` 字段的旧 settings 视为"未选择"——/init 引导重选,**不做 host 反推兜底**(那回到嗅探);
+- **/init 重跑**:支持只改适配器(保留 key/url)或全量重配;非交互环境(管道/测试)参数化退化:`/init --adapter <id> <key> <url>`(显式参数优先,无参才进交互菜单);
+- **M1 衔接预埋**:模型能力档案(contextWindow/maxOutputTokens,design/24 §6.1)长在适配器的 normalize 里(如 OrcaRouter 读网关扩展字段),不另起配置。
+
+约束(勿反复):
+
+- **共享语义上提抽象层,差异语义下沉具体类**——新增共享行为改 AbstractServiceAdapter,不进具体类;
+- **一文件一类(PSR-4)**——文件路径+文件名与 namespace+类名严格一致(项目经 addPsr4 加载 CcGpt,违反即加载失败);
+- **不做注册表框架**——描述表 + 自报契约已覆盖;多服务插件化真需求出现时再提炼,演进无损;
+- **用户给定配置 = 测试与验证唯一输入源**——禁止虚构服务地址/假想服务商/匿名测试类;超出给定配置的场景先向用户提出;
+- `ModelSourceInterface` 命名与位置**不变**(组件契约语义未变)——§8.1 的接口代码块保留原状,本节为实施修订记录。
+
+使用流程(修正后,/init 显式选择驱动):
+
+```
+/init                      ← 列适配器菜单 → 选择 → 收集 key/url → 写 {adapter, apiKey, baseUrl}
+  → /model 按 settings.adapter 定位适配器(orcarouter → free 过滤;generic → 全量)
+/init --adapter orcarouter <key> <url>   ← 非交互参数化形态(管道/测试)
+```
+
+变更归属表修订(覆盖 §8.1 首行):
+
+| 变化 | 归属 | 机制 |
+| --- | --- | --- |
+| 模型目录来源不同 | 壳 | **ModelProvider 三层适配器**(OrcaRouter/Generic/Static,§8.2)+ /init 显式选择(settings.adapter) |
+
 ## 9. 测试要点
 
 | 用例组 | 覆盖 |
@@ -328,6 +414,8 @@ final class StaticModelSource implements ModelSourceInterface {}     // config.p
 | ToolRegistry | 注册/重名 603/未知名 602/jsonSchemas 结构 |
 | 内建工具 | Write→Read 往返;ListDir;HttpGet 白名单拒绝;ExecTool 白名单拒绝/超时/成功三态 |
 | Conversation | 追加/usage 累积/reset |
+| ModelProvider(§8.2) | 模板层容错(fetch 抛 → models() 空,经真实适配器覆盖);StaticAdapter 往返;OrcaRouterAdapter normalize(free 过滤);自报契约(id/label/prompts);settings.adapter 定位分派;**host 嗅探无测试(已否决)** |
+| /init 命令 | 交互流:菜单选择 → 按 prompts 收集 → settings 写入 {adapter, apiKey, baseUrl};参数化退化路径(--adapter);重跑只改 adapter 保留 key/url;存量无 adapter 字段视为未选择 |
 | Preset | FullPreset 含 4 工具 + modelSource(不含 ExecTool);MinimalPreset 零工具 + null;自定义 Preset 增删工具后 jsonSchemas 生效 |
 | 壳(tests/Unit/Ccgpt/) | CommandRegistry 注册/未知名;Settings 读写往返、缺字段;ModelSource 两内建;--work 覆盖与默认 .work 定位;不测 UI 与真实网络 |
 | 隔离性 | core/functional/Plugin 无对 `Ws\Http\NanoGpt\` 的引用(沿用 design/17 §6 隔离测试模式) |

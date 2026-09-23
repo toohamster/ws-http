@@ -8,7 +8,7 @@ use CcGpt\Command\Init;
 use CcGpt\Command\Model;
 use CcGpt\CommandRegistry;
 use CcGpt\Context;
-use CcGpt\ModelSourceInterface;
+use CcGpt\ModelProvider\ModelSourceInterface;
 use CcGpt\Settings;
 use CcGpt\Ui\Input;
 use CcGpt\Ui\Output;
@@ -135,10 +135,11 @@ final class CcGptTest extends TestCase
     {
         $context = $this->context();
 
-        (new Init())->execute(['sk-abc', 'https://orcarouter.ai/v1'], $context);
+        (new Init())->execute(['--adapter', 'orcarouter', 'sk-abc', 'https://api.orcarouter.ai/v1'], $context);
 
+        self::assertSame('orcarouter', $context->settings->get('adapter'));
         self::assertSame('sk-abc', $context->settings->get('apiKey'));
-        self::assertSame('https://orcarouter.ai/v1', $context->settings->get('baseUrl'));
+        self::assertSame('https://api.orcarouter.ai/v1', $context->settings->get('baseUrl'));
         self::assertFileExists($this->dir . '/.settings.json');
     }
 

@@ -20,7 +20,7 @@ php <repo>/examples/cc-gpt/bin/cc-gpt
 
 | 命令 | 行为 |
 | --- | --- |
-| `/init <key> [baseUrl]` | 写入 API key/base URL 到 `.settings.json` |
+| `/init` | 适配器菜单(orcarouter/generic)→ 按提示收集 key/baseUrl,写入 `.settings.json`;非交互:`/init --adapter <id> <key> <url>` |
 | `/model [index|id]` | 有 ModelSource 时列模型目录(免费模型)并切换;否则提示手动指定 |
 | `/context` | 跨轮 token 用量 + 当前模型 + 已注册工具 |
 | `/help` | 命令列表 |
@@ -122,9 +122,11 @@ $preset = (new \Ws\Http\NanoGpt\FullPreset($sandbox))
 // 即使误入白名单也拒——删除请走内建 delete_file(沙箱绝对边界)。
 ```
 
-### 换模型目录来源(壳扩展点,design/21 §8.1)
+### 换模型服务商(design/21 §8.2,ModelProvider 三层适配器)
 
-`ModelSourceInterface` 两内建:`OrcaRouterModelSource`(models()->list() 过滤 free)/ `StaticModelSource`(手写列表)。自定义 = 实现接口,注入 `/model` 命令。
+`/init` 列出适配器菜单选择(orcarouter = free 过滤 / generic = OpenAI 兼容全量),选择后按提示收集 key/baseUrl,写入 `.settings.json` 的 `adapter` 字段;`/model` 按该字段定位适配器。
+
+结构:接口(`ModelSourceInterface`)+ 抽象模板(`AbstractServiceAdapter`,容错上提,final 锁骨架)+ 具体适配器(只填 `fetch()`/`normalize()` 差异空 + 自报 `id()/label()/prompts()`)。**接入新服务商 = 在 `CcGpt\ModelProvider\` 加一个适配器类(照 OrcaRouterAdapter 为模板)+ Init 描述表加一行**,不碰其他代码。静态档案(settings.models 手写)不走 /init,直接配置即生效。
 
 ## 与组件的边界
 

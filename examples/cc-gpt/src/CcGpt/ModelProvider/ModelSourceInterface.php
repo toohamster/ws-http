@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
-namespace CcGpt;
+namespace CcGpt\ModelProvider;
 
 /**
- * 模型目录来源(design/21 §8.1,壳层契约):模型列表获取方式随服务不同。
+ * 模型目录来源契约(design/21 §8.1,壳层;§8.2 修订:实现归 ModelProvider 三层适配器)。
+ *
+ * 壳与 /model 命令只依赖本契约,不感知适配器数量与对象。
  */
 interface ModelSourceInterface
 {
