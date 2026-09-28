@@ -4,42 +4,53 @@ declare(strict_types=1);
 
 namespace CcGpt\ModelProvider;
 
+use Ws\Http\NanoGpt\ModelInfo;
+
 /**
- * 服务适配器模板层(design/21 §8.2 三层结构):骨架 = 调用 → 容错 → 规范化。
+ * 服务适配器抽象层(design/21 §8.2 四次评审:通用 Provider)。
  *
- * 共享语义上提至此(final 锁定,子类不可改写骨架),差异语义(fetch/normalize)下沉具体类。
- * 新服务商 = 继承本类填两个空 + Application 分派方法加一个分支。
+ * 骨架 = 取 → 逐条 map(set)→ 容错,final 锁定;实例职责 = 把本服务原始条目
+ * set 进 ModelInfo 通用属性模型(Java Bean 心智:契约定义属性,实例填充差异)。
+ * 新服务商 = 继承本类实现 fetch/map + 自报契约。
  */
 abstract class AbstractServiceAdapter implements ModelSourceInterface
 {
     /**
-     * 模板方法(final):容错(服务失败 → 空列表)是所有适配器共享语义。
+     * 模板方法(final):容错(服务失败 → 空列表)是共享语义。
      *
-     * @return array<int, array{id: string, name: string, pricing: string}>
+     * @return array<int, ModelInfo>
      */
     final public function models(): array
     {
         try {
-            return $this->normalize($this->fetch());
+            $out = [];
+            foreach ($this->fetch() as $raw) {
+                $info = $this->map($raw);
+                if ($info !== null) {
+                    $out[] = $info;
+                }
+            }
+
+            return $out;
         } catch (\Throwable $e) {
             return [];
         }
     }
 
     /**
-     * 服务调用(差异空):返回该服务商的原始模型列表。
+     * 服务调用(差异):返回本服务的原始模型列表条目。
      *
-     * @return array<int, object|array<string, mixed>>
+     * @return iterable<int, object|array<string, mixed>>
      */
-    abstract protected function fetch(): array;
+    abstract protected function fetch(): iterable;
 
     /**
-     * 规范化(差异空):原始列表 → 展示目录(过滤/字段映射也在此,属服务差异)。
+     * 实例职责:set——本服务原始条目 → ModelInfo(字段名/结构差异在此隔绝);
+     * 返回 null = 过滤掉该条目(实例行为选择,如 OrcaRouter 非 free)。
      *
-     * @param array<int, object|array<string, mixed>> $raw
-     * @return array<int, array{id: string, name: string, pricing: string}>
+     * @param object|array<string, mixed> $raw
      */
-    abstract protected function normalize(array $raw): array;
+    abstract protected function map($raw): ?ModelInfo;
 
     /**
      * 自报契约(§8.2):选择标识(写进 settings.adapter;/init --adapter 参数)。

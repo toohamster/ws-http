@@ -11,7 +11,7 @@ namespace Ws\Http\NanoGpt;
 interface ModelSourceInterface
 {
     /**
-     * @return array<int, array{id: string, name: string, pricing: string}> 展示用模型目录
+     * @return array<int, ModelInfo> 模型目录(ModelInfo 属性模型,design/21 §8.2)
      */
     public function models(): array;
 }

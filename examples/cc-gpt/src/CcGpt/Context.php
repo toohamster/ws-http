@@ -38,6 +38,9 @@ final class Context
     /** @var string 引擎草稿区(.runtime;agent 中间脚本/临时文件) */
     public $runtimeDir;
 
+    /** @var \Ws\Http\Plugin\OpenAI\Client|null 探测用 client(与 agent 同凭据;bootstrapAgent 装配) */
+    public $probeClient;
+
     public function __construct(Output $output, Input $input, Settings $settings)
     {
         $this->output = $output;

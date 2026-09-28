@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace CcGpt\ModelProvider;
 
+use Ws\Http\NanoGpt\ModelInfo;
+
 /**
- * 通用适配器(design/21 §8.2):任意 OpenAI 兼容服务,/models 全量列表不过滤。
+ * 通用适配器(design/21 §8.2,实现实例):任意 OpenAI 兼容服务,/models 全量不过滤。
  */
 final class GenericAdapter extends AbstractServiceAdapter
 {
@@ -17,7 +19,7 @@ final class GenericAdapter extends AbstractServiceAdapter
         $this->client = $client;
     }
 
-    protected function fetch(): array
+    protected function fetch(): iterable
     {
         $body = $this->client->models()->list()->body;
         if (!\is_object($body) || !isset($body->data) || !\is_array($body->data)) {
@@ -28,25 +30,23 @@ final class GenericAdapter extends AbstractServiceAdapter
     }
 
     /**
-     * @param array<int, object|array<string, mixed>> $raw
-     * @return array<int, array{id: string, name: string, pricing: string}>
+     * @param object|array<string, mixed> $raw
      */
-    protected function normalize(array $raw): array
+    protected function map($raw): ?ModelInfo
     {
-        $out = [];
-        foreach ($raw as $model) {
-            $id = (string) ($model->id ?? '');
-            if ($id === '') {
-                continue;
-            }
-            $out[] = [
-                'id'      => $id,
-                'name'    => (string) ($model->name ?? $id),
-                'pricing' => (string) ($model->pricing ?? ''),
-            ];
+        $id = (string) ($raw->id ?? '');
+        if ($id === '') {
+            return null;
         }
 
-        return $out;
+        return new ModelInfo(
+            $id,
+            (string) ($raw->name ?? $id),
+            (string) ($raw->pricing ?? ''),
+            null,
+            null,
+            ModelInfo::SRC_API
+        );
     }
 
     public static function id(): string

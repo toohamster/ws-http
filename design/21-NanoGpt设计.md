@@ -343,45 +343,69 @@ final class StaticModelSource implements ModelSourceInterface {}     // config.p
   ③ 写入 .settings.json:{ adapter: "orcarouter", apiKey: ..., baseUrl: ... }
 ```
 
-**三层适配器结构**(接口 + 抽象类 + 具体适配器)与适配器自报契约:
+**三层适配器结构(修订 2026-09-23 四次评审:ModelInfo 属性模型)**:
+
+适配器模式本义(评审定调):**接口/抽象类 = 通用 Provider,定义通用工具函数/行为与一组通用属性;具体服务类 = 实现实例,把各自响应差异 set 进通用属性**(Java Bean 心智);实例可有自己的特殊方法/属性,不影响通用性。壳与消费方(/model、对账)只依赖通用属性,不感知服务差异。
 
 ```php
-// 落位:examples/cc-gpt/src/CcGpt/ModelProvider/(PSR-4:一文件一类,文件名=类名)
-// 契约(Target,§8.1 不变):壳与 /model 只认契约,不感知适配器数量与对象
-interface ModelSourceInterface { public function models(): array; }
-
-// 模板层:骨架 = 调用 → 容错 → 规范化(final 锁定)+ 自报契约(菜单/收集/定位用)
-abstract class AbstractServiceAdapter implements ModelSourceInterface
+// 落位:src/Ws/Http/NanoGpt/ModelInfo.php(组件层,与契约同层;壳组件共用)
+// ModelInfo = 通用属性模型(Java Bean:契约定义属性,适配器负责 set)
+final class ModelInfo
 {
-    final public function models(): array   // final:骨架不可改写
-    {
-        try {
-            return $this->normalize($this->fetch());
-        } catch (\Throwable $e) {
-            return [];                       // 容错是共享语义,上提至此
-        }
-    }
-    abstract protected function fetch(): array;               // 服务调用(差异)
-    abstract protected function normalize(array $raw): array; // 过滤/映射(差异)
-
-    // —— 自报契约(静态;/init 菜单与 settings.adapter 定位的中性依据)——
-    abstract public static function id(): string;      // 选择标识(写进 settings.adapter)
-    abstract public static function label(): string;   // 菜单展示("orcarouter(free 过滤)")
-    /** @return array<int, array{key: string, prompt: string, default?: string}> 输入项自述 */
-    abstract public static function prompts(): array;  // 如 apiKey/baseUrl(各适配器不同)
+    public function __construct(
+        string $id, string $name, string $pricing,        // 必有属性
+        ?int $contextWindow = null, ?int $maxOutputTokens = null,  // 能力参数,拿不到 = null
+        string $provenance = self::SRC_API                // 能力来源标记:SRC_API(接口声明)| SRC_SELF(模型自报)| SRC_MANUAL(用户手设)
+    ) {}
+    // getter 只读
 }
 
-// 具体适配器(三个):
-final class OrcaRouterAdapter extends AbstractServiceAdapter {}  # /models 解析 + free 过滤
-final class GenericAdapter  extends AbstractServiceAdapter {}    # OpenAI 兼容全量列表(不过滤)
-final class StaticAdapter   extends AbstractServiceAdapter {}    # 手写档案(settings.models;**不进 /init 菜单**,仅手配)
+// 契约(Target,§8.1 不变;返回 ModelInfo 属性模型):
+interface ModelSourceInterface { /** @return array<int, ModelInfo> */ public function models(): array; }
+
+// 抽象层(通用 Provider):骨架 = 取 → 逐条 map(set)→ 容错;自报契约不变
+abstract class AbstractServiceAdapter implements ModelSourceInterface
+{
+    final public function models(): array
+    {
+        try {
+            $out = [];
+            foreach ($this->fetch() as $raw) {
+                $info = $this->map($raw);        // 实例把差异字段 set 进 ModelInfo
+                if ($info !== null) { $out[] = $info; }   // null = 实例过滤(如非 free)
+            }
+            return $out;
+        } catch (\Throwable $e) {
+            return [];                           // 容错上提(共享语义)
+        }
+    }
+    abstract protected function fetch(): iterable;               // 服务调用(差异)
+    /** 实例职责:set——本服务原始条目 → ModelInfo(字段名差异在此隔绝) */
+    abstract protected function map($raw): ?ModelInfo;
+    // 自报契约(静态;/init 菜单与 settings.adapter 定位):id/label/prompts 不变
+}
+
+// 具体适配器(三个,均 = 实现实例):
+final class OrcaRouterAdapter extends AbstractServiceAdapter {}  # set orcarouter 字段 + free 过滤(map 返回 null)
+final class GenericAdapter  extends AbstractServiceAdapter {}    # set 通用 OpenAI 兼容字段(不过滤)
+final class StaticAdapter   extends AbstractServiceAdapter {}    # 手写档案直接 new ModelInfo(**不进 /init 菜单**,仅手配)
 ```
 
 - 适配器描述表(/init 内一个中性表,id → 类名):新适配器 = 一个类 + 表加一行,不碰其他代码(壳层开闭);
 - 分派 = 按 `settings.adapter` 查表定位适配器 → ModelSourceInterface;**无 host 字符串嗅探**(已否决);
 - **存量兼容**:缺 `adapter` 字段的旧 settings 视为"未选择"——/init 引导重选,**不做 host 反推兜底**(那回到嗅探);
 - **/init 重跑**:支持只改适配器(保留 key/url)或全量重配;非交互环境(管道/测试)参数化退化:`/init --adapter <id> <key> <url>`(显式参数优先,无参才进交互菜单);
-- **M1 衔接预埋**:模型能力档案(contextWindow/maxOutputTokens,design/24 §6.1)长在适配器的 normalize 里(如 OrcaRouter 读网关扩展字段),不另起配置。
+- **M1 衔接预埋**:模型能力档案(contextWindow/maxOutputTokens,design/24 §6.1)= ModelInfo 属性的落点,消费方只读属性不另起配置。
+
+**模型能力参数获取级联**(评审补充 2026-09-23;探测 = 选择后的默认值生产者,用户裁决):
+
+| 时机 | 行为 | provenance |
+| --- | --- | --- |
+| /model 列表 | 接口字段直接展示(服务商声明,零额外请求);拿不到显示 "-" | SRC_API |
+| **选择模型后**(参数未知) | 探测一次:构造提示词让模型 JSON 自述上下文参数 → **作为默认值提示用户:[录入](采用为默认值) / [自设](手动输入) / [跳过]**;展示标注"模型自述,可能不准" | 落定值按裁决记录:录入 = SRC_MANUAL(内容源自模型自报);自设 = SRC_MANUAL |
+| 对账(design/24 §6.1) | 消费落定值,无感 | — |
+
+**字段名以真实响应为准(协议 4)**:实现接口提取前先观察一条真实 orcarouter 模型 raw 数据,禁止假设字段名;冒烟与实现以用户给定的 orcarouter 配置为唯一目标。
 
 约束(勿反复):
 
@@ -405,6 +429,13 @@ final class StaticAdapter   extends AbstractServiceAdapter {}    # 手写档案(
 | --- | --- | --- |
 | 模型目录来源不同 | 壳 | **ModelProvider 三层适配器**(OrcaRouter/Generic/Static,§8.2)+ /init 显式选择(settings.adapter) |
 
+### 8.3 通用 Provider 与实例服务类(2026-09-23 评审修正;已并入 §8.2 ModelInfo 属性模型)
+
+> 本节原为独立小节,四次评审后其内容已并入 §82 决策段(ModelInfo 属性模型 / 骨架 map-set 分工 / 能力获取级联)。保留标题作演进留痕,规则以 §8.2 为准:
+> - 接口/抽象类 = 通用 Provider(通用行为 + 通用属性集);具体服务类 = 实现实例(set 差异进属性);
+> - 实例可有自己的特殊方法/属性(父类没有的),不影响通用 Provider——消费方只依赖接口与 ModelInfo;
+> - OrcaRouter 是一个实例服务类;冒烟与验证以它为目标(用户给定配置),结构上不特殊。
+
 ## 9. 测试要点
 
 | 用例组 | 覆盖 |
@@ -414,7 +445,7 @@ final class StaticAdapter   extends AbstractServiceAdapter {}    # 手写档案(
 | ToolRegistry | 注册/重名 603/未知名 602/jsonSchemas 结构 |
 | 内建工具 | Write→Read 往返;ListDir;HttpGet 白名单拒绝;ExecTool 白名单拒绝/超时/成功三态 |
 | Conversation | 追加/usage 累积/reset |
-| ModelProvider(§8.2) | 模板层容错(fetch 抛 → models() 空,经真实适配器覆盖);StaticAdapter 往返;OrcaRouterAdapter normalize(free 过滤);自报契约(id/label/prompts);settings.adapter 定位分派;**host 嗅探无测试(已否决)** |
+| ModelProvider(§8.2) | ModelInfo 属性模型(必有/能力/provenance);骨架 map-set(fetch 抛 → 空,经真实适配器覆盖);OrcaRouter map(free 过滤返回 null);StaticAdapter 直配;自报契约(id/label/prompts);settings.adapter 定位分派;**host 嗅探无测试(已否决)** |
 | /init 命令 | 交互流:菜单选择 → 按 prompts 收集 → settings 写入 {adapter, apiKey, baseUrl};参数化退化路径(--adapter);重跑只改 adapter 保留 key/url;存量无 adapter 字段视为未选择 |
 | Preset | FullPreset 含 4 工具 + modelSource(不含 ExecTool);MinimalPreset 零工具 + null;自定义 Preset 增删工具后 jsonSchemas 生效 |
 | 壳(tests/Unit/Ccgpt/) | CommandRegistry 注册/未知名;Settings 读写往返、缺字段;ModelSource 两内建;--work 覆盖与默认 .work 定位;不测 UI 与真实网络 |

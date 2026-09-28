@@ -4,34 +4,49 @@ declare(strict_types=1);
 
 namespace CcGpt\ModelProvider;
 
+use Ws\Http\NanoGpt\ModelInfo;
+
 /**
- * 静态适配器(design/21 §8.2):手写档案(settings.models 数组;百炼类/自建场景)。
+ * 静态适配器(design/21 §8.2,实现实例):手写档案(settings.models;百炼类/自建场景)。
+ *
+ * 手写条目直接 new ModelInfo(允许携带 contextWindow/maxOutputTokens,provenance = manual)。
  */
 final class StaticAdapter extends AbstractServiceAdapter
 {
-    /** @var array<int, array{id: string, name: string, pricing: string}> */
+    /** @var array<int, array<string, mixed>> */
     private $models;
 
     /**
-     * @param array<int, array{id: string, name: string, pricing: string}> $models
+     * @param array<int, array<string, mixed>> $models 手写档案:{id, name?, pricing?, contextWindow?, maxOutputTokens?}
      */
     public function __construct(array $models)
     {
         $this->models = $models;
     }
 
-    protected function fetch(): array
+    protected function fetch(): iterable
     {
         return $this->models;
     }
 
     /**
-     * @param array<int, array{id: string, name: string, pricing: string}> $raw
-     * @return array<int, array{id: string, name: string, pricing: string}>
+     * @param array<string, mixed> $raw
      */
-    protected function normalize(array $raw): array
+    protected function map($raw): ?ModelInfo
     {
-        return $raw;
+        $id = (string) ($raw['id'] ?? '');
+        if ($id === '') {
+            return null;
+        }
+
+        return new ModelInfo(
+            $id,
+            (string) ($raw['name'] ?? $id),
+            (string) ($raw['pricing'] ?? ''),
+            isset($raw['contextWindow']) && $raw['contextWindow'] !== null ? (int) $raw['contextWindow'] : null,
+            isset($raw['maxOutputTokens']) && $raw['maxOutputTokens'] !== null ? (int) $raw['maxOutputTokens'] : null,
+            ModelInfo::SRC_MANUAL
+        );
     }
 
     public static function id(): string

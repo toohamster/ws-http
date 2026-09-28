@@ -97,15 +97,16 @@ final class CcGptTest extends TestCase
             public function models(): array
             {
                 return [
-                    ['id' => 'free-mini', 'name' => 'Free Mini', 'pricing' => '0'],
-                    ['id' => 'free-pro', 'name' => 'Free Pro', 'pricing' => '0'],
+                    new \Ws\Http\NanoGpt\ModelInfo('free-mini', 'Free Mini', '0'),
+                    new \Ws\Http\NanoGpt\ModelInfo('free-pro', 'Free Pro', '0', 65536),
                 ];
             }
         };
+        $context->probeClient = null; // 切换到窗口未知模型时跳过探测(agent/probe 未装配路径)
 
         $cmd = new Model();
 
-        // 按序号切换
+        // 按序号切换(free-pro 窗口已知 65536,不触发探测)
         $cmd->execute(['2'], $context);
         self::assertSame('free-pro', $context->model);
 

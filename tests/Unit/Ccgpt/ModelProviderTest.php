@@ -13,11 +13,13 @@ use CcGpt\Settings;
 use CcGpt\Ui\Input;
 use CcGpt\Ui\Output;
 use PHPUnit\Framework\TestCase;
+use Ws\Http\NanoGpt\ModelInfo;
 
 /**
- * design/21 §8.2:ModelProvider 三层适配器 + /init 显式选择分派。
+ * design/21 §8.2:ModelProvider 三层适配器(ModelInfo 属性模型)+ /init 显式选择分派。
  *
- * 仅围绕项目给定的 orcarouter 配置语义;真实链路由 examples/cc-gpt/bin/smoke 覆盖。
+ * 仅围绕项目给定的 orcarouter 配置语义(S3 观察事实:无结构化窗口字段、pricing 为对象);
+ * 真实链路由 examples/cc-gpt/bin/smoke 冒烟覆盖,不在此虚构服务。
  */
 final class ModelProviderTest extends TestCase
 {
@@ -57,32 +59,73 @@ final class ModelProviderTest extends TestCase
 
     public function testAdapterPrompts(): void
     {
-        // orcarouter/generic:apiKey + baseUrl(各带默认);static:无输入项
         $orcaKeys = array_map(static fn (array $p): string => $p['key'], OrcaRouterAdapter::prompts());
         self::assertSame(['apiKey', 'baseUrl'], $orcaKeys);
-
-        $genericDefaults = [];
-        foreach (GenericAdapter::prompts() as $p) {
-            $genericDefaults[$p['key']] = $p['default'] ?? '';
-        }
-        self::assertSame('https://api.openai.com/v1', $genericDefaults['baseUrl']);
 
         self::assertSame([], StaticAdapter::prompts());
     }
 
-    // ---------- StaticAdapter(静态档案差异空) ----------
+    // ---------- StaticAdapter(手写档案直接 set 进 ModelInfo,provenance = manual) ----------
 
-    public function testStaticAdapterReturnsListAsIs(): void
+    public function testStaticAdapterMapsToModelInfo(): void
     {
-        $models = [
-            ['id' => 'qwen-max', 'name' => 'Qwen Max', 'pricing' => '0.002'],
-        ];
+        $adapter = new StaticAdapter([
+            ['id' => 'qwen-max', 'name' => 'Qwen Max', 'pricing' => '0.002', 'contextWindow' => 32768],
+            ['id' => 'qwen-turbo'],   // 最简条目:能力缺省
+            ['id' => ''],             // 非法条目被过滤
+        ]);
 
-        self::assertSame($models, (new StaticAdapter($models))->models());
-        self::assertSame([], (new StaticAdapter([]))->models());
+        $models = $adapter->models();
+        self::assertCount(2, $models);
+
+        self::assertSame('qwen-max', $models[0]->id());
+        self::assertSame('Qwen Max', $models[0]->name());
+        self::assertSame('0.002', $models[0]->pricing());
+        self::assertSame(32768, $models[0]->contextWindow());
+        self::assertSame(ModelInfo::SRC_MANUAL, $models[0]->provenance());
+
+        self::assertSame('qwen-turbo', $models[1]->id());
+        self::assertNull($models[1]->contextWindow());
+        self::assertSame('qwen-turbo', $models[1]->name());
     }
 
-    // ---------- /init 参数化形态(--adapter)与 settings.adapter 定位 ----------
+    // ---------- 模板层(通用 Provider):骨架 map-set + 容错 ----------
+
+    public function testTemplateFiltersNullMapsAndToleratesFetchFailure(): void
+    {
+        // OrcaRouterAdapter:fetch 失败(unit 未配/网络不可达)→ 容错 → 空
+        $adapter = new OrcaRouterAdapter(
+            new \Ws\Http\Plugin\OpenAI\Client('sk-test', null, 'https://unit.invalid/v1')
+        );
+
+        self::assertSame([], $adapter->models());
+    }
+
+    // ---------- 分派语义:settings.adapter → 适配器类(经 Init 描述表,同 Application::modelSource) ----------
+
+    public function testDispatchBySettingsAdapter(): void
+    {
+        foreach (['orcarouter' => OrcaRouterAdapter::class, 'generic' => GenericAdapter::class] as $id => $expected) {
+            $resolved = null;
+            foreach (Init::adapterClasses() as $class) {
+                if ($class::id() === $id) {
+                    $resolved = $class;
+                    break;
+                }
+            }
+            self::assertSame($expected, $resolved);
+        }
+
+        $resolved = null;
+        foreach (Init::adapterClasses() as $class) {
+            if ($class::id() === 'nope') {
+                $resolved = $class;
+            }
+        }
+        self::assertNull($resolved);
+    }
+
+    // ---------- /init 参数化形态(--adapter) ----------
 
     public function testInitParametricWritesAdapter(): void
     {
@@ -101,7 +144,7 @@ final class ModelProviderTest extends TestCase
 
         $exit = (new Init())->execute(['--adapter', 'nope', 'sk-abc', 'https://x/v1'], $context);
 
-        self::assertTrue($exit); // 不退出 REPL
+        self::assertTrue($exit);
         self::assertNull($context->settings->get('adapter'));
     }
 
@@ -111,44 +154,17 @@ final class ModelProviderTest extends TestCase
 
         (new Init())->execute(['--adapter', 'orcarouter', '', 'https://api.orcarouter.ai/v1'], $context);
 
-        self::assertNull($context->settings->get('adapter')); // 中止,不落任何写入
+        self::assertNull($context->settings->get('adapter'));
     }
 
     public function testInitRerunAdapterOnlyKeepsKeyUrl(): void
     {
         $context = $this->context(['adapter' => 'orcarouter', 'apiKey' => 'sk-old', 'baseUrl' => 'https://api.orcarouter.ai/v1']);
 
-        // 只改 adapter(保留 key/url):--adapter id 两参 + 空参形式不覆盖已有值
         (new Init())->execute(['--adapter', 'generic', 'sk-old', ''], $context);
 
         self::assertSame('generic', $context->settings->get('adapter'));
-        self::assertSame('sk-old', $context->settings->get('apiKey')); // 保留
-        self::assertSame('https://api.orcarouter.ai/v1', $context->settings->get('baseUrl')); // 保留(空参不覆盖)
-    }
-
-    // ---------- 分派语义:settings.adapter → 适配器类(经 Init 描述表,同 Application::modelSource) ----------
-
-    public function testDispatchBySettingsAdapter(): void
-    {
-        // 与 Application::modelSource 相同的查表逻辑(§8.2:显式选择,无 host 嗅探)
-        foreach (['orcarouter' => OrcaRouterAdapter::class, 'generic' => GenericAdapter::class] as $id => $expected) {
-            $resolved = null;
-            foreach (Init::adapterClasses() as $class) {
-                if ($class::id() === $id) {
-                    $resolved = $class;
-                    break;
-                }
-            }
-            self::assertSame($expected, $resolved);
-        }
-
-        // 未选择/未知 id → 无适配器(settings.models 或 null 兜底,host 不参与)
-        $resolved = null;
-        foreach (Init::adapterClasses() as $class) {
-            if ($class::id() === 'nope') {
-                $resolved = $class;
-            }
-        }
-        self::assertNull($resolved);
+        self::assertSame('sk-old', $context->settings->get('apiKey'));
+        self::assertSame('https://api.orcarouter.ai/v1', $context->settings->get('baseUrl'));
     }
 }

@@ -4,8 +4,13 @@ declare(strict_types=1);
 
 namespace CcGpt\ModelProvider;
 
+use Ws\Http\NanoGpt\ModelInfo;
+
 /**
- * orcarouter 适配器(design/21 §8.2):只填服务差异——/models 调用与 free 过滤。
+ * orcarouter 适配器(design/21 §8.2,实现实例):set 字段映射 + free 过滤(map 返回 null)。
+ *
+ * S3 观察事实(2026-09-23 真实 /models 响应):无结构化窗口字段;pricing 是对象
+ * {"request": "..."};窗口信息只在 description 自由文本——不从文本猜,走探测/手动级联。
  */
 final class OrcaRouterAdapter extends AbstractServiceAdapter
 {
@@ -17,7 +22,7 @@ final class OrcaRouterAdapter extends AbstractServiceAdapter
         $this->client = $client;
     }
 
-    protected function fetch(): array
+    protected function fetch(): iterable
     {
         $body = $this->client->models()->list()->body;
         if (!\is_object($body) || !isset($body->data) || !\is_array($body->data)) {
@@ -28,25 +33,29 @@ final class OrcaRouterAdapter extends AbstractServiceAdapter
     }
 
     /**
-     * @param array<int, object|array<string, mixed>> $raw
-     * @return array<int, array{id: string, name: string, pricing: string}>
+     * @param object|array<string, mixed> $raw
      */
-    protected function normalize(array $raw): array
+    protected function map($raw): ?ModelInfo
     {
-        $out = [];
-        foreach ($raw as $model) {
-            $id = (string) ($model->id ?? '');
-            if ($id === '' || stripos($id, 'free') === false) {
-                continue;
-            }
-            $out[] = [
-                'id'      => $id,
-                'name'    => (string) ($model->name ?? $id),
-                'pricing' => (string) ($model->pricing ?? ''),
-            ];
+        $id = (string) ($raw->id ?? '');
+        if ($id === '' || stripos($id, 'free') === false) {
+            return null; // free 过滤(实例行为选择)
         }
 
-        return $out;
+        // S3 观察:pricing 是对象 {request: "..."},取其 request 值
+        $pricing = '';
+        if (isset($raw->pricing) && \is_object($raw->pricing)) {
+            $pricing = (string) ($raw->pricing->request ?? '');
+        }
+
+        return new ModelInfo(
+            $id,
+            (string) ($raw->name ?? $id),
+            $pricing,
+            null,  // 无结构化窗口字段(S3 观察)——能力参数走选择后探测/手动级联
+            null,
+            ModelInfo::SRC_API
+        );
     }
 
     public static function id(): string

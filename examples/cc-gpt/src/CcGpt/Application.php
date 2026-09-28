@@ -111,6 +111,7 @@ final class Application
         }
 
         $client = new Client($apiKey, null, $baseUrl);
+        $this->context->probeClient = $client; // 探测用(与 agent 同凭据,design/21 §8.2 级联)
         $model = (string) $this->context->settings->get('model', '');
         $this->context->model = $model;
         $this->context->agent = new Agent($client, $model !== '' ? $model : 'gpt-4o-mini');
