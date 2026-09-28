@@ -102,11 +102,14 @@ final class CcGptTest extends TestCase
                 ];
             }
         };
-        $context->probeClient = null; // 切换到窗口未知模型时跳过探测(agent/probe 未装配路径)
 
         $cmd = new Model();
 
-        // 按序号切换(free-pro 窗口已知 65536,不触发探测)
+        // 按序号切换(窗口未知 → probeClient 未装配 → 提示手动,不中断)
+        $cmd->execute(['1'], $context);
+        self::assertSame('free-mini', $context->model);
+
+        // 按序号切换(窗口已知 → 不触发探测)
         $cmd->execute(['2'], $context);
         self::assertSame('free-pro', $context->model);
 
