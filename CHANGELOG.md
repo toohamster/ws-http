@@ -2,6 +2,30 @@
 
 所有显著变更记录于此。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [2.5.0] - 2026-10-08
+
+### Added
+- 会话管理组件(design/24):`Conversation` 增强(setSystem 运行期注入 / truncateFrom user 边界截断 605 / snapshot v:1 + restore 611 / userCheckpoints 摘要标记)、`ConversationStoreInterface` + `FileConversationStore`(.runtime/sessions,新→旧,损坏容错)
+- 上下文预算与压缩:`ContextBudget`(ceil(bytes/3) 保守估算,80% 阈值)、`CompactorInterface` + `LlmCompactor`(tool 结果预截断 2000 字符防死锁,失败 612 原 messages 不动)
+- 显式长期记忆:`Memory`(remember/recall/forget/systemPromptBlock,经 setSystem 即时生效)
+- 壳命令族(cc-gpt):/compact /rewind /clear /resume /memory + 每轮 run 前自动压缩(compactAuto 可关)+ /context 双口径(累计 usage + 窗口占用)
+- cc-gpt 模型服务适配:`ModelInfo` 属性模型(id/name/pricing + contextWindow/maxOutputTokens + provenance 来源标记)、ModelProvider 三层适配器(接口 + AbstractServiceAdapter 模板 + OrcaRouter/Generic/Static 实例)、/init 适配器选择分派、模型能力参数级联(接口字段 → 选择后提示词探测默认值 → 用户裁决)
+- `PreparedBody::__toString`(字符串直返;数组转 JSON 表示,日志/诊断用)
+
+### Fixed
+- cc-gpt 壳不再无条件注入 OrcaRouter 模型来源(orcarouter 特定逻辑默认化的架构错误,§8.2 评审)
+- `Input::readLine` 注入流形态提示词改走 STDERR(原写进读流污染读取位置;生产分支未动)
+- bin/smoke 汇总计数(record() 函数作用域遮蔽)+ chat 链失败诊断
+
+### Verified
+- N4 集成冒烟 3/3(deepseek-v4-flash-free,function calling 证实;orcarouter/free 配额池共享不作优先选择)
+
+## [2.4.0] - 2026-10-08
+
+### Added
+- design/21 §8.2 收口:ModelProvider 三层适配器 + /init 显式选择(settings.adapter 分派,host 嗅探否决)
+- N4 冒烟脚本归位 examples/cc-gpt/bin/smoke(三链:models/chat/tools,配置与壳同源);孤儿 config.example.php 删除
+
 ## [2.0.0-alpha.8] - 2026-09-15
 
 ### Added

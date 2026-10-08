@@ -102,6 +102,10 @@ $wp->posts()->create('标题', '正文');
 
 完整可运行示例(含多轮对话/用量提取/错误形态)见 [examples/openai-chat](examples/openai-chat/run.php)。
 
+### NanoGpt:OpenAI 协议 agent 编排层(`Ws\Http\NanoGpt`)
+
+agent loop(事件流 Generator)+ 工具协议(ToolInterface/ToolRegistry)+ Sandbox 沙箱 + 会话管理(截断/快照/持久化/预算压缩/长期记忆)。首个消费壳 [examples/cc-gpt](examples/cc-gpt/README.md):agent CLI(/init /model /compact /rewind /clear /resume /memory,自动压缩,多服务模型适配)。设计见 [design/21](design/21-NanoGpt设计.md) 与 [design/24](design/24-会话与记忆设计.md)。
+
 ## 扩展机制(Extension / Plugin)
 
 | 扩展点 | 方式 | 例 |
