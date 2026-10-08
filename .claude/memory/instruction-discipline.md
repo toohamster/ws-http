@@ -57,8 +57,9 @@
 
 | 事项 | 状态 |
 | --- | --- |
-| N4 冒烟三链 | models/chat PASS;tools 阻塞于 orcarouter/free 配额,改用 deepseek/deepseek-v4-flash-free(待确认执行) |
-| /model 上下文长度提取 | 方案待重出(先看模型对象真实字段) |
-| 设计校准(design/24 §6.1 字段映射 ← 冒烟结果) | 排冒烟后 |
-| M1(Conversation 增强 + Store + ModelSource 契约) | 排校准后 |
-| design/26 Skill / 历史标签清理 | 待用户指令 |
+| ~~N4 冒烟 / 校准 / M1~~ | **已完成,收口 v2.4.0**(2026-10-08,用户已推远程) |
+| design/24 M2(预算与压缩:ContextBudget/Compactor/LlmCompactor) | 下一步候选 |
+| design/24 M3(长期记忆 Memory) | 排 M2 后 |
+| design/24 M4(壳命令族:/compact /rewind /clear /resume /memory + 自动压缩) | 排 M3 后 |
+| M5(文档收口) | 排 M4 后 |
+| design/26 Skill / 历史标签清理(v2.1.0-pause 等 7 个) | 待用户指令 |
