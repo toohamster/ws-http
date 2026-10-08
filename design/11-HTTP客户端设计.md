@@ -219,6 +219,7 @@ final class PreparedBody   // 新增值对象
 {
     public readonly mixed $content;       // string | array( multipart )
     public readonly ?string $contentType; // null = 不设置
+    // __toString():字符串直接返回;数组(multipart)转 JSON 表示(日志/诊断"取内容看一眼"场景,仅表示用)
 }
 ```
 

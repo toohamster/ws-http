@@ -25,4 +25,15 @@ final class PreparedBody
         $this->content = $content;
         $this->contentType = $contentType;
     }
+
+    /**
+     * 字符串形态语义:字符串直接返回;数组(multipart)转 JSON 表示
+     * (日志/诊断等"取内容看一眼"场景;非 multipart 的线上形态,仅表示用)。
+     */
+    public function __toString(): string
+    {
+        return \is_array($this->content)
+            ? (string) json_encode($this->content, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            : $this->content;
+    }
 }
