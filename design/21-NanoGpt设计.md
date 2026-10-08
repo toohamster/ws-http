@@ -458,7 +458,7 @@ final class StaticAdapter   extends AbstractServiceAdapter {}    # 手写档案�
 | N1 | 组件核心 | ToolInterface/ToolRegistry/Sandbox + 4 内建工具 + Conversation + Preset(§4.2)+ AgentException | Sandbox 三态 + Registry/Preset 单测绿 |
 | N2 | Agent loop | Agent.php | mock 双响应序列单测 |
 | N3 | CLI 壳 | examples/cc-gpt 全部(含 ModelSource 两内建) | 壳单测 + /help /init /model(mock)/context 路径覆盖 |
-| N4 | 集成冒烟 | 真实 orcarouter key 全链 | GET /models 过滤 free → /model 选择 → 带工具对话 |
+| N4 | 集成冒烟 | **已完成(2026-10-08)**:examples/cc-gpt/bin/smoke 三链全过(deepseek/deepseek-v4-flash-free;orcarouter/free 配额池共享不作优先选择)——function calling 风险解除;S3 观察:pricing 为对象 {request},无结构化窗口字段 → 能力参数走 §8.2 级联(选择后探测→用户裁决) | models/chat/tools 3/3 PASS(退出码 0) |
 | N5 | 文档收口 | 主 README/CHANGELOG 更新、design/README 索引同步 | — |
 
-**风险与对策**:orcarouter 的 tools 支持度未知(free 模型可能不支持 function calling)→ N4 冒烟验证;若不支持,Agent 保留 tools 传参但文档标注"需支持 tools 的模型",纯对话路径不受影响。
+**风险与对策(N4 已验证)**:~~orcarouter 的 tools 支持度未知~~ → 冒烟证实 deepseek-v4-flash-free 支持 function calling(tools 链全过);窗口能力参数无接口字段,由 §8.2 级联(探测/手动)承接。

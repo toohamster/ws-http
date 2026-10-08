@@ -26,7 +26,7 @@
 | [16-执行器设计.md](16-执行器设计.md) | functional | Runner 状态机与 failFast、StepResult/Report(JSON 报告契约)、CookieStore、CLI 规格 |
 | [17-Plugin层设计.md](17-Plugin层设计.md) | plugin | PluginInterface/PluginRegistry 注册机制、AuthProviderInterface、OpenAI/WordPress 内建样例 |
 | [20-实施方案步骤.md](20-实施方案步骤.md) | — | 落地执行计划:S1–S11 步骤定义、目录结构、每步测试用例与完成标准 |
-| [21-NanoGpt设计.md](21-NanoGpt设计.md) | NanoGpt | agent loop 引擎 + 工具协议(ToolInterface/Registry)+ Sandbox 沙箱 + 会话/用量;examples/cc-gpt CLI 壳 |
+| [21-NanoGpt设计.md](21-NanoGpt设计.md) | NanoGpt | agent loop 引擎 + 工具协议(ToolInterface/Registry)+ Sandbox 沙箱 + 会话/用量;examples/cc-gpt CLI 壳;§8.2 ModelProvider 适配器(ModelInfo 属性模型/map-set/能力级联);N1–N4 已完成(N4 冒烟 3/3,2026-10-08) |
 | [22-外部凭据注入设计.md](22-外部凭据注入设计.md) | functional | pause 步骤 + ValueSource 注册表(stdin/environment/poll);依赖等待与节奏等待的区分;时间参数只属于 poll |
 | [23-数据驱动测试设计.md](23-数据驱动测试设计.md) | functional | Automated\Dataset 子模块:datasets/iterate、DatasetRunner 外层迭代、BatchReport 组维度汇总、CLI --dataset |
 | [24-会话与记忆设计.md](24-会话与记忆设计.md) | NanoGpt | Conversation 演进(截断/快照/检查点)+ 会话持久化 + 上下文预算与压缩(/compact /rewind /clear /resume)+ 显式长期记忆(/memory) |
