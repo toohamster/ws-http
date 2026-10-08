@@ -52,6 +52,10 @@ final class Application
 
         $this->context = new Context($this->output, $this->input, $settings);
         $this->context->runtimeDir = $repoRoot . '/.runtime';
+        $this->context->currentSessionId = date('Ymd-His'); // session 身份归壳(design/24 §3)
+        $this->context->sessionStore = new \Ws\Http\NanoGpt\FileConversationStore($repoRoot . '/.runtime/sessions');
+        $this->context->memory = new \Ws\Http\NanoGpt\Memory($workOverride ?? $repoRoot . '/.work' . '/memory.json');
+        $this->context->compactAuto = $settings->get('compactAuto') === null || (bool) $settings->get('compactAuto');
         $this->commands = new CommandRegistry();
         foreach ($this->defaultCommands() as $command) {
             $this->commands->register($command);
@@ -77,6 +81,14 @@ final class Application
             new Command\ShowContext(),
             new Command\Help(),
             new Command\Quit(),
+            new Command\Compact(new \Ws\Http\NanoGpt\LlmCompactor(
+                new Client($this->context->settings->get('apiKey') ?: 'unset', null, 'https://unit.invalid/v1'),
+                'gpt-4o-mini'
+            ), $this->context->sessionStore),
+            new Command\Rewind(),
+            new Command\Clear($this->context->sessionStore),
+            new Command\Resume($this->context->sessionStore),
+            new Command\Memory(),
         ];
     }
 
@@ -115,6 +127,9 @@ final class Application
         $model = (string) $this->context->settings->get('model', '');
         $this->context->model = $model;
         $this->context->agent = new Agent($client, $model !== '' ? $model : 'gpt-4o-mini');
+
+        // M4:窗口预算(模型能力档案 settings.modelProfiles[<model>] 优先,settings.contextWindow 兜底)
+        $this->context->budget = $this->buildBudget($model !== '' ? $model : 'gpt-4o-mini');
 
         $preset = $preset ?? $this->defaultPreset(
             $sandbox,
@@ -225,6 +240,20 @@ final class Application
         }
     }
 
+    /**
+     * 窗口预算构建(M4):窗口 = settings.modelProfiles[<model>].contextWindow
+     * (§8.2 级联落点)→ settings.contextWindow 兜底 → 默认 128000。
+     */
+    private function buildBudget(string $model): \Ws\Http\NanoGpt\ContextBudget
+    {
+        $profiles = $this->context->settings->get('modelProfiles');
+        $window = \is_array($profiles) && isset($profiles[$model]['contextWindow']) && \is_int($profiles[$model]['contextWindow'])
+            ? $profiles[$model]['contextWindow']
+            : (int) $this->context->settings->get('contextWindow', 128000);
+
+        return new \Ws\Http\NanoGpt\ContextBudget($window);
+    }
+
     private function runAgentTurn(string $input): void
     {
         if ($this->context->agent === null) {
@@ -232,6 +261,12 @@ final class Application
 
             return;
         }
+
+        // 自动压缩(design/24 §7):每轮 run 前 needsCompact → 保留 2 轮;compactAuto=false 关闭
+        \CcGpt\Command\Compact::maybeAuto($this->context, new \Ws\Http\NanoGpt\LlmCompactor(
+            $this->context->probeClient ?? new Client('unset', null, self::DEFAULT_BASE_URL),
+            $this->context->model !== '' ? $this->context->model : 'gpt-4o-mini'
+        ));
 
         try {
             foreach ($this->context->agent->run($input) as $event) {

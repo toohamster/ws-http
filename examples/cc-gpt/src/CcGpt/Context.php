@@ -41,6 +41,43 @@ final class Context
     /** @var \Ws\Http\Plugin\OpenAI\Client|null 探测用 client(与 agent 同凭据;bootstrapAgent 装配) */
     public $probeClient;
 
+    /** @var string|null 当前 session 身份(壳持有;Conversation 不感知,design/24 §3) */
+    public $currentSessionId;
+
+    /** @var \Ws\Http\NanoGpt\ConversationStoreInterface|null 会话持久化(M4 装配) */
+    public $sessionStore;
+
+    /** @var \Ws\Http\NanoGpt\ContextBudget|null 当前窗口预算(模型能力档案驱动,M4 装配) */
+    public $budget;
+
+    /** @var bool 自动压缩开关(settings.compactAuto,默认 true) */
+    public $compactAuto = true;
+
+    /** @var \Ws\Http\NanoGpt\Memory|null 长期记忆(M4 装配) */
+    public $memory;
+
+    /** @var int|null 当前会话最近一次落盘后追加的消息序号(未保存提示用) */
+    public $unsavedSince;
+
+    /**
+     * 把 Memory 的 systemPromptBlock 注入 Conversation(基线 system 之后拼记忆块)。
+     */
+    public function applyMemoryToSystem(): void
+    {
+        if ($this->agent === null || $this->memory === null) {
+            return;
+        }
+
+        $base = $this->agent->conversation()->system();
+        $baseContent = (string) ($base['content'] ?? '');
+        $block = $this->memory->systemPromptBlock();
+        $merged = $block !== null
+            ? ($baseContent !== '' ? $baseContent . "\n\n" . $block : $block)
+            : ($baseContent !== '' ? $baseContent : null);
+
+        $this->agent->conversation()->setSystem($merged !== null ? ['role' => 'system', 'content' => $merged] : null);
+    }
+
     public function __construct(Output $output, Input $input, Settings $settings)
     {
         $this->output = $output;

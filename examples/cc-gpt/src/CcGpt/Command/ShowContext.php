@@ -36,15 +36,26 @@ final class ShowContext implements CommandInterface
 
         $usage = $context->agent->conversation()->usage();
         $out->writeln('model:    ' . ($context->model !== '' ? $context->model : '(none)'));
+        // 双口径(design/24 §7):会话累计 usage(费用)+ 当前窗口占用(预算口径)
         $out->writeln(sprintf(
             'usage:    prompt=%d completion=%d total=%d',
             $usage['prompt_tokens'],
             $usage['completion_tokens'],
             $usage['total_tokens']
         ));
+        $messages = $context->agent->conversation()->messages();
+        if ($context->budget !== null) {
+            $ratio = $context->budget->usageRatio($messages);
+            $out->writeln(sprintf(
+                'window:   ~%.0f%% of budget (est. %d tokens / %d messages)',
+                $ratio * 100,
+                $context->budget->estimateTokens($messages),
+                count($messages)
+            ));
+        }
         $tools = $context->agent->tools()->names();
         $out->writeln('tools:    ' . ($tools === [] ? '(none)' : implode(', ', $tools)));
-        $out->writeln(sprintf('messages: %d in conversation', \count($context->agent->conversation()->messages())));
+        $out->writeln('session:  ' . ($context->currentSessionId ?? '(none)'));
 
         return true;
     }

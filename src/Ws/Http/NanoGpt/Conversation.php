@@ -85,6 +85,20 @@ final class Conversation
         $this->usage = ['prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0];
     }
 
+    /**
+     * usage 原地恢复(压缩/会话重建后保持跨轮累计口径;design/24 §7 /compact 使用)。
+     *
+     * @param array{prompt_tokens: int, completion_tokens: int, total_tokens: int} $usage
+     */
+    public function restoreUsage(array $usage): void
+    {
+        $this->usage = [
+            'prompt_tokens'     => (int) ($usage['prompt_tokens'] ?? 0),
+            'completion_tokens' => (int) ($usage['completion_tokens'] ?? 0),
+            'total_tokens'      => (int) ($usage['total_tokens'] ?? 0),
+        ];
+    }
+
     // ===== 以下为 design/24 §2(M1-a)增强:截断/快照/检查点 =====
 
     /**
