@@ -57,16 +57,18 @@ if (!is_string($baseUrl) || $baseUrl === '') {
 }
 
 $client = new Client($apiKey, null, $baseUrl);
-$results = [];
+$GLOBALS['smoke_results'] = [];
 
 /**
  * 记录一条链的结果并打印。
  */
 function record(string $chain, bool $passed, string $detail): void
 {
-    $results[] = [$chain, $passed, $detail];
+    $GLOBALS['smoke_results'][] = [$chain, $passed, $detail];
     printf("[%s] %s %s\n", $passed ? 'PASS' : 'FAIL', $chain, $detail);
 }
+
+$results = &$GLOBALS['smoke_results'];
 
 // ── 链1 models ────────────────────────────────────────────────
 $freeModels = [];
@@ -119,6 +121,12 @@ try {
     $usage = is_object($body) && is_object($body->usage ?? null)
         ? sprintf('usage(total=%d)', (int) $body->usage->total_tokens)
         : 'usage(missing)';
+    if ($content === '') {
+        // 失败诊断:raw body 前 300 字符取证(服务端瞬时形态/解析问题归因用)
+        $raw = (string) ($response->rawBody ?? '');
+        fwrite(STDERR, 'chat FAIL diagnosis: body type=' . gettype($body)
+            . ' raw[0..300]=' . mb_substr($raw, 0, 300) . "\n");
+    }
     record('chat', $content !== '', sprintf('model=%s %s content=%s', $model, $usage, trim($content) !== '' ? '"' . trim(mb_substr($content, 0, 60)) . '"' : '(empty)'));
 } catch (\Throwable $e) {
     record('chat', false, 'exception: ' . $e->getMessage());
