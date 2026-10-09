@@ -1,7 +1,0 @@
-<?php
-
-declare(strict_types=1);
-
-namespace SnowmanNunu\Ai\Exceptions;
-
-class AiDriverNotFoundException extends AiException {}
