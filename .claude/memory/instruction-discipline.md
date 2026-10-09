@@ -58,8 +58,7 @@
 | 事项 | 状态 |
 | --- | --- |
 | ~~N4 冒烟 / 校准 / M1~~ | **已完成,收口 v2.4.0**(2026-10-08,用户已推远程) |
-| design/24 M2(预算与压缩:ContextBudget/Compactor/LlmCompactor) | 下一步候选 |
-| design/24 M3(长期记忆 Memory) | 排 M2 后 |
-| design/24 M4(壳命令族:/compact /rewind /clear /resume /memory + 自动压缩) | 排 M3 后 |
-| M5(文档收口) | 排 M4 后 |
-| design/26 Skill / 历史标签清理(v2.1.0-pause 等 7 个) | 待用户指令 |
+| ~~design/24 M2/M3/M4/M5~~ | **已完成,收口 v2.5.0**(2026-10-08,530 tests + PHPStan 绿;待用户推远程) |
+| design/26 Skill(实现待触发:层 2 描述式工具真实使用) | 待用户指令 |
+| 历史标签清理(v2.1.0-pause 等 7 个) | 待用户指令 |
+| design/24 §6.1 /model 对账三态菜单(c/r/k) | M4 未含对账菜单,属 /model 增强剩余项 |
