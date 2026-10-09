@@ -15,3 +15,6 @@ examples/cc-gpt/config.php
 
 # 3rd-party reference material (design/28: local reference only, not in repo)
 /3rd/
+
+# PHPUnit local result cache (machine-local, no collaboration value)
+.phpunit.result.cache
