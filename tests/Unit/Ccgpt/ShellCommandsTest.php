@@ -21,6 +21,7 @@ use Ws\Http\NanoGpt\FileConversationStore;
 use Ws\Http\NanoGpt\Memory;
 use Ws\Http\NanoGpt\ModelInfo;
 use Ws\Http\NanoGpt\ModelSourceInterface;
+use Ws\Http\Tests\Fake\FakeChatTransport;
 
 /**
  * design/24 §7(M4):壳命令族——/compact /rewind /clear /resume /memory + 自动压缩服务。
@@ -52,7 +53,7 @@ final class ShellCommandsTest extends TestCase
 
     private function agentWithConversation(): Agent
     {
-        return new Agent(new \Ws\Http\Plugin\OpenAI\Client('sk-test', null, 'https://unit.invalid/v1'), 'm');
+        return new Agent(new FakeChatTransport([new \Ws\Http\NanoGpt\ChatResult('')]), 'm');
     }
 
     private function stubCompactor(): CompactorInterface

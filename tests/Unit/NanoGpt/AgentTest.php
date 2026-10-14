@@ -7,15 +7,14 @@ namespace Ws\Http\Tests\Unit\NanoGpt;
 use PHPUnit\Framework\TestCase;
 use Ws\Http\NanoGpt\Agent;
 use Ws\Http\NanoGpt\AgentException;
+use Ws\Http\NanoGpt\ChatResult;
 use Ws\Http\NanoGpt\Sandbox;
 use Ws\Http\NanoGpt\Tool\WriteFileTool;
-use Ws\Http\Plugin\OpenAI\Client;
-use Ws\Http\Request;
-use Ws\Http\RequestOptions;
-use Ws\Http\Response;
+use Ws\Http\Tests\Fake\FakeChatTransport;
 
 /**
- * design/21 N2:Agent loop(mock 双响应序列,同 FakeRequestFactory 替身模式)。
+ * design/21 N2:Agent loop(design/28 D2 修订:替身从 Client 换为 FakeChatTransport——
+ * 编排层只依赖传输契约;断言不变,等价性验证)。
  */
 final class AgentTest extends TestCase
 {
@@ -32,91 +31,47 @@ final class AgentTest extends TestCase
     }
 
     /**
-     * 替身 Client:按调用序号出队预制 body(捕获请求 payload 供断言)。
+     * 替身传输:按序出队预制 ChatResult(calls 捕获历次 messages/options 供断言)。
      *
-     * @param array<int, object> $bodies chat/completions 响应 body 序列
-     * @param array<int, mixed>|null $capturedPayloads 引用传出的请求 payload 序列
+     * @param array<int, ChatResult> $results
      */
-    private function fakeClient(array $bodies, &$capturedPayloads = null): Client
+    private function fakeTransport(array $results): FakeChatTransport
     {
-        $captured = &$capturedPayloads;
-        $http = new class($bodies, $captured) extends Request {
-            /** @var array<int, object> */
-            private $bodies;
-
-            /** @var int 静态序号:withOptions 会 clone Request 实例,实例属性会随之复制导致队列错乱 */
-            public static $index = 0;
-
-            /** @var array<int, mixed>|null */
-            public $payloads;
-
-            public function __construct(array $bodies, &$capturedPayloads)
-            {
-                parent::__construct();
-                $this->bodies = $bodies;
-                self::$index = 0;
-                $this->payloads = &$capturedPayloads;
-            }
-
-            public function send(string $method, string $url, $body = null, array $headers = []): Response
-            {
-                $content = $body !== null && isset($body->content) ? (string) $body->content : '{}';
-                if (\is_array($this->payloads)) {
-                    $this->payloads[] = json_decode($content, true);
-                }
-                $bodyObj = $this->bodies[self::$index] ?? (object) [];
-                self::$index++;
-
-                return new Response(
-                    ['http_code' => 200, 'header_size' => 0, 'total_time' => 0.1],
-                    json_encode($bodyObj) ?: '{}',
-                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
-                );
-            }
-        };
-
-        return new Client('test-key', $http, 'https://fake.local/v1');
+        return new FakeChatTransport($results);
     }
 
-    private function textBody(string $content): object
+    private function textResult(string $content): ChatResult
     {
-        return (object) [
-            'choices' => [
-                (object) [
-                    'message'       => (object) ['role' => 'assistant', 'content' => $content],
-                    'finish_reason' => 'stop',
-                ],
-            ],
-            'usage' => (object) ['prompt_tokens' => 10, 'completion_tokens' => 5, 'total_tokens' => 15],
-        ];
+        return new ChatResult($content, null, 'stop', [], [
+            'prompt_tokens'     => 10,
+            'completion_tokens' => 5,
+            'total_tokens'      => 15,
+        ]);
     }
 
-    private function toolCallBody(string $callId, string $name, array $args): object
+    /**
+     * @param array<int, array{id: string, name: string, arguments: string}> $calls
+     */
+    private function toolCallResult(string $callId, string $name, array $args): ChatResult
     {
-        return (object) [
-            'choices' => [
-                (object) [
-                    'message'       => (object) [
-                        'role'       => 'assistant',
-                        'content'    => null,
-                        'tool_calls' => [
-                            (object) [
-                                'id'       => $callId,
-                                'type'     => 'function',
-                                'function' => (object) ['name' => $name, 'arguments' => json_encode($args)],
-                            ],
-                        ],
-                    ],
-                    'finish_reason' => 'tool_calls',
-                ],
-            ],
-            'usage' => (object) ['prompt_tokens' => 20, 'completion_tokens' => 8, 'total_tokens' => 28],
-        ];
+        $arguments = json_encode($args) ?: '{}';
+
+        return new ChatResult('', null, 'tool_calls', [
+            ['id' => $callId, 'name' => $name, 'arguments' => $arguments, 'wire' => (object) [
+                'id'       => $callId,
+                'type'     => 'function',
+                'function' => (object) ['name' => $name, 'arguments' => $arguments],
+            ]],
+        ], [
+            'prompt_tokens'     => 20,
+            'completion_tokens' => 8,
+            'total_tokens'      => 28,
+        ]);
     }
 
     public function testPlainTextTurn(): void
     {
-        $agent = new Agent($this->fakeClient([$this->textBody('你好!')]), 'test-model');
+        $agent = new Agent($this->fakeTransport([$this->textResult('你好!')]), 'test-model');
 
         $events = iterator_to_array($agent->run('hi'));
 
@@ -130,13 +85,12 @@ final class AgentTest extends TestCase
 
     public function testToolCallLoopWithBackfill(): void
     {
-        $payloads = [];
-        $client = $this->fakeClient([
-            $this->toolCallBody('call-1', 'write_file', ['path' => 'a.txt', 'content' => 'data']),
-            $this->textBody('done'),
-        ], $payloads);
+        $transport = $this->fakeTransport([
+            $this->toolCallResult('call-1', 'write_file', ['path' => 'a.txt', 'content' => 'data']),
+            $this->textResult('done'),
+        ]);
 
-        $agent = new Agent($client, 'test-model');
+        $agent = new Agent($transport, 'test-model');
         $agent->tools()->register(new WriteFileTool(new Sandbox($this->root)));
 
         $events = iterator_to_array($agent->run('写个文件'));
@@ -150,10 +104,11 @@ final class AgentTest extends TestCase
         self::assertFileExists($this->root . '/a.txt');
 
         // 第二次请求的 messages 含 role=tool 回填
-        self::assertCount(2, $payloads);
-        $roles = array_column($payloads[1]['messages'], 'role');
+        self::assertCount(2, $transport->calls);
+        $secondMessages = $transport->calls[1]['messages'];
+        $roles = array_column($secondMessages, 'role');
         self::assertSame(['user', 'assistant', 'tool'], $roles);
-        self::assertSame('call-1', $payloads[1]['messages'][2]['tool_call_id']);
+        self::assertSame('call-1', $secondMessages[2]['tool_call_id']);
 
         // usage 跨两次响应累积
         self::assertSame(30, $agent->conversation()->usage()['prompt_tokens']);
@@ -162,31 +117,30 @@ final class AgentTest extends TestCase
 
     public function testUnknownToolBackfillsErrorNotAbort(): void
     {
-        $payloads = [];
-        $client = $this->fakeClient([
-            $this->toolCallBody('call-1', 'no_such_tool', []),
-            $this->textBody('ok, adjusted'),
-        ], $payloads);
+        $transport = $this->fakeTransport([
+            $this->toolCallResult('call-1', 'no_such_tool', []),
+            $this->textResult('ok, adjusted'),
+        ]);
 
-        $agent = new Agent($client, 'test-model'); // 无工具注册
+        $agent = new Agent($transport, 'test-model'); // 无工具注册
 
         $events = iterator_to_array($agent->run('go'));
 
         self::assertSame('tool_call', $events[0]['type']);
         self::assertStringContainsString('unknown tool', $events[1]['result']);
         self::assertSame('text', $events[2]['type']);
-        self::assertStringContainsString('unknown tool', (string) $payloads[1]['messages'][2]['content']);
+        self::assertStringContainsString('unknown tool', (string) $transport->calls[1]['messages'][2]['content']);
     }
 
     public function testMaxTurnsThrows601(): void
     {
         // 每轮都回 tool_calls → 永不产出文本
-        $client = $this->fakeClient([
-            $this->toolCallBody('c1', 'write_file', ['path' => 'a', 'content' => 'x']),
-            $this->toolCallBody('c2', 'write_file', ['path' => 'b', 'content' => 'x']),
+        $transport = $this->fakeTransport([
+            $this->toolCallResult('c1', 'write_file', ['path' => 'a', 'content' => 'x']),
+            $this->toolCallResult('c2', 'write_file', ['path' => 'b', 'content' => 'x']),
         ]);
 
-        $agent = new Agent($client, 'test-model', 2);
+        $agent = new Agent($transport, 'test-model', 2);
         $agent->tools()->register(new WriteFileTool(new Sandbox($this->root)));
 
         try {
@@ -199,10 +153,7 @@ final class AgentTest extends TestCase
 
     public function testFinishReasonLengthYieldsError(): void
     {
-        $body = $this->textBody('partial');
-        $body->choices[0]->finish_reason = 'length';
-
-        $agent = new Agent($this->fakeClient([$body]), 'test-model');
+        $agent = new Agent($this->fakeTransport([new ChatResult('partial', null, 'length')]), 'test-model');
 
         $events = iterator_to_array($agent->run('hi'));
 
@@ -213,40 +164,61 @@ final class AgentTest extends TestCase
 
     public function testTransportErrorYieldsErrorAndKeepsConversation(): void
     {
-        $http = new class extends Request {
-            public function send(string $method, string $url, $body = null, array $headers = []): Response
-            {
-                throw new \Ws\Http\RequestException(7, 'connection refused', 'POST', 'https://fake.local/v1/chat/completions');
-            }
-        };
+        // 传输失败(RequestException → Transport 分类为 624 族;此处直接以分类异常注入)
+        $transport = new FakeChatTransport([], new AgentException('transport failure: connection refused', 624));
 
-        $agent = new Agent(new Client('k', $http, 'https://fake.local/v1'), 'test-model');
+        $agent = new Agent($transport, 'test-model');
 
         $events = iterator_to_array($agent->run('hi'));
 
         self::assertSame('error', $events[0]['type']);
+        self::assertSame(624, $events[0]['code']); // 分类 code 透传 error 事件
         self::assertStringContainsString('connection refused', $events[0]['message']);
         // 会话保留:user 消息仍在,可重试
         self::assertSame('user', $agent->conversation()->messages()[0]['role']);
     }
 
-    public function testUnexpectedStructureThrows604(): void
+    public function testTransportClassificationCodesSurfaceInEvents(): void
     {
-        $agent = new Agent($this->fakeClient([(object) ['foo' => 'bar']]), 'test-model');
+        // 五类分类码逐一透传(design/28 §4:编排层可对分类分支)
+        foreach ([620, 621, 622, 623, 624] as $code) {
+            $transport = new FakeChatTransport([], new AgentException(sprintf('classified %d', $code), $code));
 
-        $this->expectException(AgentException::class);
-        $this->expectExceptionCode(604);
+            $agent = new Agent($transport, 'test-model');
+            $events = iterator_to_array($agent->run('hi'));
+
+            self::assertSame($code, $events[0]['code'], sprintf('code %d should surface', $code));
+        }
+    }
+
+    public function testToolsPassedToTransportWhenRegistered(): void
+    {
+        $transport = $this->fakeTransport([$this->textResult('hi')]);
+
+        $agent = new Agent($transport, 'test-model');
+        $agent->tools()->register(new WriteFileTool(new Sandbox($this->root)));
         iterator_to_array($agent->run('hi'));
+
+        self::assertArrayHasKey('tools', $transport->calls[0]['options']);
+    }
+
+    public function testModelPassedInRequestOptions(): void
+    {
+        $transport = $this->fakeTransport([$this->textResult('hi')]);
+
+        $agent = new Agent($transport, 'my-model-x');
+        iterator_to_array($agent->run('hi'));
+
+        self::assertSame('my-model-x', $transport->calls[0]['options']['model']);
     }
 
     public function testToolsOmittedFromPayloadWhenEmpty(): void
     {
-        $payloads = [];
-        $client = $this->fakeClient([$this->textBody('hi')], $payloads);
+        $transport = $this->fakeTransport([$this->textResult('hi')]);
 
-        $agent = new Agent($client, 'test-model');
+        $agent = new Agent($transport, 'test-model');
         iterator_to_array($agent->run('hi'));
 
-        self::assertArrayNotHasKey('tools', $payloads[0]);
+        self::assertArrayNotHasKey('tools', $transport->calls[0]['options']);
     }
 }

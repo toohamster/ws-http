@@ -70,6 +70,19 @@ abstract class OpenAiCompatibleTransport implements ChatTransportInterface
         return static::DEFAULT_MODEL;
     }
 
+    /**
+     * 请求级模型解析:options['model'](调用方覆盖,Agent 每次传入)优先,
+     * 缺省回落厂商默认(design/28 §1:model 属 Agent 构造,Transport 常量为兜底)。
+     *
+     * @param array<string, mixed> $options
+     */
+    private function resolveModel(array $options): string
+    {
+        $model = $options['model'] ?? '';
+
+        return \is_string($model) && $model !== '' ? $model : $this->defaultModel();
+    }
+
     public function chat(array $messages, array $options = []): ChatResult
     {
         $retry = $this->normalizeRetry($options['retry'] ?? []);
@@ -79,7 +92,7 @@ abstract class OpenAiCompatibleTransport implements ChatTransportInterface
 
         while (true) {
             try {
-                $response = $this->client->chat()->create($messages, $this->defaultModel(), $this->extraOptions($options));
+                $response = $this->client->chat()->create($messages, $this->resolveModel($options), $this->extraOptions($options));
             } catch (\Ws\Http\RequestException $e) {
                 // 传输层异常(连接失败/超时)→ 映射;不重试传输异常(幂等性不可保证,只重试可重试状态码)
                 throw $this->mapException($e, 0, $e->getMessage());
@@ -126,7 +139,7 @@ abstract class OpenAiCompatibleTransport implements ChatTransportInterface
     protected function extraOptions(array $options): array
     {
         $extra = [];
-        foreach (['max_tokens', 'temperature', 'top_p'] as $k) {
+        foreach (['max_tokens', 'temperature', 'top_p', 'tools'] as $k) {
             if (isset($options[$k])) {
                 $extra[$k] = $options[$k];
             }

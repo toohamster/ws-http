@@ -62,6 +62,42 @@ final class OpenAiCompatibleTransportTest extends TestCase
         self::assertArrayNotHasKey('retry', $payload); // 策略不进请求体
     }
 
+    public function testRequestLevelModelOverridesVendorDefault(): void
+    {
+        // options['model'](Agent 每次传入)优先于厂商 DEFAULT_MODEL 常量
+        $fake = new FakeChatRequest([[200, $this->chatBody('ok')]]);
+        $transport = new DeepSeekTransport(['api_key' => 'sk-test', 'http' => $fake]);
+
+        $transport->chat([['role' => 'user', 'content' => 'hi']], ['model' => 'custom-model-id']);
+
+        $payload = json_decode((string) $fake->lastBody(), true);
+        self::assertSame('custom-model-id', $payload['model']);
+    }
+
+    public function testEmptyModelFallsBackToVendorDefault(): void
+    {
+        $fake = new FakeChatRequest([[200, $this->chatBody('ok')]]);
+        $transport = new DeepSeekTransport(['api_key' => 'sk-test', 'http' => $fake]);
+
+        $transport->chat([['role' => 'user', 'content' => 'hi']], ['model' => '']);
+
+        $payload = json_decode((string) $fake->lastBody(), true);
+        self::assertSame('deepseek-chat', $payload['model']); // 空 = 厂商默认兜底
+    }
+
+    public function testToolsSchemaPassedIntoRequestBody(): void
+    {
+        // Agent 每次传入的 tools schemas 必须进请求体(工具循环的关键透传位)
+        $fake = new FakeChatRequest([[200, $this->chatBody('ok')]]);
+        $transport = new OrcaRouterTransport(['api_key' => 'sk-test', 'http' => $fake]);
+        $schemas = [['type' => 'function', 'function' => ['name' => 'write_file']]];
+
+        $transport->chat([['role' => 'user', 'content' => 'hi']], ['tools' => $schemas]);
+
+        $payload = json_decode((string) $fake->lastBody(), true);
+        self::assertSame($schemas, $payload['tools']);
+    }
+
     // ---------- 重试语义(§3) ----------
 
     public function testNoRetryByDefault(): void

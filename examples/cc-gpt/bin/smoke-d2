@@ -1,0 +1,131 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * D2 真实链验证(design/28 D2;升级自 N4 旧链 Client 直连 → Transport→Agent 新契约):
+ *
+ *   链1 chat:  OrcaRouterTransport → Agent 单轮文本(新契约完整链)
+ *   链2 tools: Agent loop 带工具 → tool_calls → 执行 → 回填 → 文本
+ *
+ * 配置与壳同源:env(CC_GPT_API_KEY / CC_GPT_BASE_URL)> examples/cc-gpt/.settings.json。
+ * 模型:参数 > env(CC_GPT_SMOKE_MODEL)> 默认 deepseek/deepseek-v4-flash-free(N4 验证可用)。
+ *
+ * 用法:
+ *   /usr/local/bin/php74 examples/cc-gpt/bin/smoke-d2 [modelId]
+ *
+ * 退出码:0 两链全过;1 任一链失败。
+ */
+
+use Ws\Http\NanoGpt\Agent;
+use Ws\Http\NanoGpt\Sandbox;
+use Ws\Http\NanoGpt\Tool\WriteFileTool;
+use Ws\Http\NanoGpt\Transport\OrcaRouterTransport;
+
+require __DIR__ . '/../../../vendor/autoload.php';
+
+$shellRoot = dirname(__DIR__);
+
+$settingsData = [];
+$raw = @file_get_contents($shellRoot . '/.settings.json');
+if ($raw !== false) {
+    $decoded = json_decode($raw, true);
+    if (is_array($decoded)) {
+        $settingsData = $decoded;
+    }
+}
+
+$apiKey = getenv('CC_GPT_API_KEY');
+if ($apiKey === false || $apiKey === '') {
+    $apiKey = $settingsData['apiKey'] ?? null;
+}
+if (!is_string($apiKey) || $apiKey === '') {
+    fwrite(STDERR, "error: no API key (set CC_GPT_API_KEY or run /init in cc-gpt)\n");
+    exit(1);
+}
+
+$baseUrl = getenv('CC_GPT_BASE_URL');
+if ($baseUrl === false || $baseUrl === '') {
+    $baseUrl = is_string($settingsData['baseUrl'] ?? null) ? $settingsData['baseUrl'] : 'https://api.orcarouter.ai/v1';
+}
+
+$model = $argv[1] ?? (getenv('CC_GPT_SMOKE_MODEL') ?: 'deepseek/deepseek-v4-flash-free');
+
+$transport = new OrcaRouterTransport(['api_key' => (string) $apiKey, 'base_url' => (string) $baseUrl]);
+$GLOBALS['smoke_results'] = [];
+
+function record(string $chain, bool $passed, string $detail): void
+{
+    $GLOBALS['smoke_results'][] = [$chain, $passed, $detail];
+    printf("[%s] %s %s\n", $passed ? 'PASS' : 'FAIL', $chain, $detail);
+}
+
+// ── 链1 chat(Transport→Agent 新契约单轮文本)─────────────────────
+try {
+    $agent = new Agent($transport, $model);
+    $events = iterator_to_array($agent->run('Reply with exactly one word: pong'));
+
+    $text = '';
+    foreach ($events as $e) {
+        if ($e['type'] === 'text') {
+            $text = $e['text'];
+        }
+    }
+    $errors = array_filter($events, static fn (array $e): bool => $e['type'] === 'error');
+    $usage = $agent->conversation()->usage();
+
+    record(
+        'chat',
+        $text !== '' && $errors === [],
+        sprintf('model=%s usage(total=%d) text="%s"', $model, $usage['total_tokens'], trim(mb_substr($text, 0, 60)))
+    );
+} catch (\Throwable $e) {
+    record('chat', false, sprintf('%s [%d]: %s', get_class($e), $e->getCode(), $e->getMessage()));
+}
+
+// ── 链2 tools(Agent loop 带工具:tool_calls → 执行 → 回填 → 文本)──
+$smokeRoot = $shellRoot . '/.runtime/smoke-d2';
+if (!is_dir($smokeRoot) && !@mkdir($smokeRoot, 0755, true) && !is_dir($smokeRoot)) {
+    record('tools', false, "cannot create smoke sandbox {$smokeRoot}");
+} else {
+    try {
+        $agent = new Agent($transport, $model, 4);
+        $agent->tools()->register(new WriteFileTool(new Sandbox($smokeRoot)));
+
+        $toolCalls = [];
+        $finalText = '';
+        foreach ($agent->run('Use the write_file tool to create smoke.txt containing exactly "smoke-ok". Then reply with exactly one word: done.') as $event) {
+            if ($event['type'] === 'tool_call') {
+                $toolCalls[] = $event['name'];
+            } elseif ($event['type'] === 'text') {
+                $finalText = $event['text'];
+            }
+        }
+
+        $written = @file_get_contents($smokeRoot . '/smoke.txt');
+        $ok = in_array('write_file', $toolCalls, true) && $written === 'smoke-ok';
+        record('tools', $ok, sprintf(
+            'model=%s tool_calls=[%s] file=%s final=%s',
+            $model,
+            implode(',', $toolCalls),
+            $written === 'smoke-ok' ? 'smoke-ok' : var_export($written, true),
+            trim($finalText) !== '' ? '"' . trim(mb_substr($finalText, 0, 40)) . '"' : '(none)'
+        ));
+    } catch (\Ws\Http\NanoGpt\AgentException $e) {
+        record('tools', false, sprintf('AgentException [%d]: %s', $e->getCode(), $e->getMessage()));
+    } catch (\Throwable $e) {
+        record('tools', false, 'exception: ' . $e->getMessage());
+    }
+}
+
+// ── 汇总 ──────────────────────────────────────────────────────
+$failed = 0;
+foreach ($GLOBALS['smoke_results'] as [$chain, $passed, $detail]) {
+    if (!$passed) {
+        $failed++;
+    }
+}
+printf("\nsummary: %d/%d chains passed\n", count($GLOBALS['smoke_results']) - $failed, count($GLOBALS['smoke_results']));
+
+exit($failed > 0 ? 1 : 0);
