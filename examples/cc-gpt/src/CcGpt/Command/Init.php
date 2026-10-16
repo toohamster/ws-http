@@ -7,6 +7,7 @@ namespace CcGpt\Command;
 use CcGpt\CommandInterface;
 use CcGpt\Context;
 use CcGpt\ModelProvider\AbstractServiceAdapter;
+use Ws\Http\NanoGpt\Transport\GenericOpenAiTransport;
 
 /**
  * /init:服务适配器选择 + key/url 配置(design/21 §8.2)。

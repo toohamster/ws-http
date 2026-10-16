@@ -8,6 +8,7 @@ use CcGpt\Ui\Input;
 use CcGpt\Ui\Output;
 use Ws\Http\NanoGpt\Agent;
 use Ws\Http\NanoGpt\ModelSourceInterface;
+use Ws\Http\NanoGpt\Transport\ChatTransportInterface;
 
 /**
  * 命令执行上下文:壳内共享物(REPL 状态 + 组件句柄)。
@@ -38,8 +39,8 @@ final class Context
     /** @var string 引擎草稿区(.runtime;agent 中间脚本/临时文件) */
     public $runtimeDir;
 
-    /** @var \Ws\Http\Plugin\OpenAI\Client|null 探测用 client(与 agent 同凭据;bootstrapAgent 装配) */
-    public $probeClient;
+    /** @var ChatTransportInterface|null 主传输(与 agent 同凭据;bootstrapAgent 装配;压缩/探测共用,design/28 D3) */
+    public $transport;
 
     /** @var string|null 当前 session 身份(壳持有;Conversation 不感知,design/24 §3) */
     public $currentSessionId;

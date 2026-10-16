@@ -17,6 +17,6 @@ interface Preset
      */
     public function tools(): array;
 
-    /** 模型目录来源;null = 壳自行处理 */
+    /** 模型目录来源;null = 壳自行处理(design/28 D3:实现委托 Transport::capabilities) */
     public function modelSource(): ?ModelSourceInterface;
 }

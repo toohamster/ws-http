@@ -98,31 +98,34 @@ final class ModelProviderTest extends TestCase
         self::assertSame([], (new StaticAdapter([]))->models());
     }
 
-    // ---------- 骨架容错(fetch 抛异常 → 空列表)经 OrcaRouterAdapter 自然覆盖 ----------
+    // ---------- 骨架容错(capabilities 抛异常 → 空列表)经 OrcaRouterAdapter 自然覆盖 ----------
 
     public function testOrcaRouterAdapterFaultTolerance(): void
     {
         // 单元环境无真实服务:连接失败 → 容错路径 → 空列表(不抛)
         $adapter = new OrcaRouterAdapter(
-            new \Ws\Http\Plugin\OpenAI\Client('sk-test', null, 'https://unit.invalid/v1')
+            new \Ws\Http\NanoGpt\Transport\OrcaRouterTransport([
+                'api_key'  => 'sk-test',
+                'base_url' => 'https://unit.invalid/v1',
+            ])
         );
 
         self::assertSame([], $adapter->models());
     }
 
-    // ---------- map-set 语义:S3 观察事实经替身响应钉住 ----------
+    // ---------- 薄壳委托:目录解析归 Transport(S3 观察事实在厂商 Transport 类) ----------
 
-    public function testOrcaRouterMapSetWithObservedShape(): void
+    public function testOrcaRouterDelegatesToTransportCapabilities(): void
     {
-        // 用 StaticAdapter 无法测 orcarouter 的 set 逻辑;此处以受保护 map 的公开入口
-        // (models() 骨架)经最小请求替身验证——替身按 tests/Unit 惯例做成专属内部类形态
-        // (Request 层 requestOn 替身属 Plugin\OpenAI 集成面;这里仅断言 map 语义可经
-        //  真实 HTTP 失败兜底,字段级 set 语义由 smoke 真实链覆盖)。
+        // free 过滤/字段归一 = Transport::modelFromEntry(厂商类);适配器只委托。
+        // 真实响应域由 smoke 真实链覆盖;此处钉住"委托成立 + 失败容错"。
         $adapter = new OrcaRouterAdapter(
-            new \Ws\Http\Plugin\OpenAI\Client('sk-test', null, 'https://unit.invalid/v1')
+            new \Ws\Http\NanoGpt\Transport\OrcaRouterTransport([
+                'api_key'  => 'sk-test',
+                'base_url' => 'https://unit.invalid/v1',
+            ])
         );
 
-        // 失败容错 → [];free 过滤等 set 细节在真实响应域(smoke 覆盖)
         self::assertSame([], $adapter->models());
     }
 

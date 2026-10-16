@@ -234,11 +234,13 @@ abstract class OpenAiCompatibleTransport implements ChatTransportInterface
             $body = $response->body;
             if (\is_object($body) && isset($body->data) && \is_array($body->data)) {
                 foreach ($body->data as $m) {
-                    $id = (string) ($m->id ?? '');
-                    if ($id === '') {
+                    if (!\is_object($m)) {
                         continue;
                     }
-                    $models[] = new ModelInfo($id, (string) ($m->name ?? $id));
+                    $info = $this->modelFromEntry($m);
+                    if ($info !== null) {
+                        $models[] = $info;
+                    }
                 }
             }
         } catch (\Throwable $e) {
@@ -246,5 +248,23 @@ abstract class OpenAiCompatibleTransport implements ChatTransportInterface
         }
 
         return ['models' => $models, 'contextWindow' => null, 'maxOutputTokens' => null];
+    }
+
+    /**
+     * 目录条目 → ModelInfo(差异槽;厂商子类覆写做条目过滤/字段归一,
+     * 返回 null = 过滤该条目)。基类:全量无过滤,id 必需,pricing 标量直取。
+     *
+     * @param object $entry /models data 原始条目
+     */
+    protected function modelFromEntry(object $entry): ?ModelInfo
+    {
+        $id = (string) ($entry->id ?? '');
+        if ($id === '') {
+            return null;
+        }
+
+        $pricing = isset($entry->pricing) && \is_scalar($entry->pricing) ? (string) $entry->pricing : '';
+
+        return new ModelInfo($id, (string) ($entry->name ?? $id), $pricing, null, null, ModelInfo::SRC_API);
     }
 }

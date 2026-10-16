@@ -4,14 +4,12 @@ declare(strict_types=1);
 
 namespace CcGpt\ModelProvider;
 
-use Ws\Http\NanoGpt\ModelInfo;
-
 /**
- * 静态适配器(design/21 §8.2,实现实例):手写档案(settings.models;百炼类/自建场景)。
- *
- * 手写条目直接 new ModelInfo(允许携带 contextWindow/maxOutputTokens,provenance = manual)。
+ * 静态适配器(design/21 §8.2;design/28 D3 修订):手写档案(settings.models;
+ * 百炼类/自建场景)不走 Transport——手写条目直接 new ModelInfo
+ * (允许携带 contextWindow/maxOutputTokens,provenance = manual)。
  */
-final class StaticAdapter extends AbstractServiceAdapter
+final class StaticAdapter implements ModelSourceInterface
 {
     /** @var array<int, array<string, mixed>> */
     private $models;
@@ -24,29 +22,29 @@ final class StaticAdapter extends AbstractServiceAdapter
         $this->models = $models;
     }
 
-    protected function fetch(): iterable
-    {
-        return $this->models;
-    }
-
     /**
-     * @param array<string, mixed> $raw
+     * @return array<int, \Ws\Http\NanoGpt\ModelInfo>
      */
-    protected function map($raw): ?ModelInfo
+    public function models(): array
     {
-        $id = (string) ($raw['id'] ?? '');
-        if ($id === '') {
-            return null;
+        $out = [];
+        foreach ($this->models as $raw) {
+            $id = (string) ($raw['id'] ?? '');
+            if ($id === '') {
+                continue;
+            }
+
+            $out[] = new \Ws\Http\NanoGpt\ModelInfo(
+                $id,
+                (string) ($raw['name'] ?? $id),
+                (string) ($raw['pricing'] ?? ''),
+                isset($raw['contextWindow']) && $raw['contextWindow'] !== null ? (int) $raw['contextWindow'] : null,
+                isset($raw['maxOutputTokens']) && $raw['maxOutputTokens'] !== null ? (int) $raw['maxOutputTokens'] : null,
+                \Ws\Http\NanoGpt\ModelInfo::SRC_MANUAL
+            );
         }
 
-        return new ModelInfo(
-            $id,
-            (string) ($raw['name'] ?? $id),
-            (string) ($raw['pricing'] ?? ''),
-            isset($raw['contextWindow']) && $raw['contextWindow'] !== null ? (int) $raw['contextWindow'] : null,
-            isset($raw['maxOutputTokens']) && $raw['maxOutputTokens'] !== null ? (int) $raw['maxOutputTokens'] : null,
-            ModelInfo::SRC_MANUAL
-        );
+        return $out;
     }
 
     public static function id(): string

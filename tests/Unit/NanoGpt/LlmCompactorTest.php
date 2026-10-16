@@ -6,27 +6,24 @@ namespace Ws\Http\Tests\Unit\NanoGpt;
 
 use PHPUnit\Framework\TestCase;
 use Ws\Http\NanoGpt\AgentException;
+use Ws\Http\NanoGpt\ChatResult;
 use Ws\Http\NanoGpt\LlmCompactor;
-use Ws\Http\Plugin\OpenAI\Client as OpenAIClient;
-use Ws\Http\Request;
-use Ws\Http\RequestOptions;
-use Ws\Http\Response;
-use Ws\Http\Tests\Engine\FakeRequestFactory;
+use Ws\Http\Tests\Fake\FakeChatTransport;
 
 /**
- * design/24 §4.2(M2-b):LlmCompactor——经既有测试替身(FakeRequestFactory + 匿名 Request 覆写
- * send,同 PluginRegistryTest 的 requestOn 模式)。
+ * design/24 §4.2(M2-b;design/28 D3 契约切换):LlmCompactor 经 FakeChatTransport
+ * 替身(tests/Fake 实名规格,同 AgentTest)。
  *
  * 钉住:摘要消息形态(role=user,content 前缀【历史摘要】);tool 消息预截断 2000 字符
- * (只影响摘要 prompt,原 messages 不动);LLM 失败/空段/坏响应 → 612。
+ * (只影响摘要 prompt,原 messages 不动);LLM 失败/空段/坏响应 → 612;model/max_tokens
+ * 经 options 透传。
  */
 final class LlmCompactorTest extends TestCase
 {
     public function testCompactProducesSummaryUserMessage(): void
     {
-        $factory = new FakeRequestFactory();
-        $factory->queue($this->chatResponse('任务目标:读文件;结论:x;未完成:y;数值:z=1'));
-        $compactor = new LlmCompactor($this->clientOn($factory), 'deepseek-v4-flash');
+        $transport = new FakeChatTransport([$this->chatResult('任务目标:读文件;结论:x;未完成:y;数值:z=1')]);
+        $compactor = new LlmCompactor($transport, 'deepseek-v4-flash');
 
         $summary = $compactor->compact([
             ['role' => 'user', 'content' => 'do task'],
@@ -40,9 +37,8 @@ final class LlmCompactorTest extends TestCase
 
     public function testToolMessagesTruncatedTo2000CharsInPromptOnly(): void
     {
-        $factory = new FakeRequestFactory();
-        $factory->queue($this->chatResponse('summary text'));
-        $compactor = new LlmCompactor($this->clientOn($factory), 'm');
+        $transport = new FakeChatTransport([$this->chatResult('summary text')]);
+        $compactor = new LlmCompactor($transport, 'm');
 
         $longToolContent = str_repeat('T', 5000);
         $original = [
@@ -52,13 +48,11 @@ final class LlmCompactorTest extends TestCase
         $compactor->compact($original);
 
         // 进入压缩 prompt 的 tool 内容被截断到 2000 字符(transcript 形态:tool 行并入 user 消息)
-        $sent = $factory->lastSent();
-        self::assertNotNull($sent);
-        $payload = json_decode((string) $sent['body'], true);
-        self::assertIsArray($payload, 'chat request body should be JSON: ' . substr((string) $sent['body'], 0, 200));
+        self::assertCount(1, $transport->calls);
+        $messages = $transport->calls[0]['messages'];
 
         $userContent = '';
-        foreach ($payload['messages'] as $m) {
+        foreach ($messages as $m) {
             if ($m['role'] === 'user') {
                 $userContent = (string) $m['content'];
             }
@@ -71,13 +65,8 @@ final class LlmCompactorTest extends TestCase
 
     public function testTransportFailureThrows612(): void
     {
-        $factory = new FakeRequestFactory();
-        $factory->queue(new Response(
-            ['http_code' => 500, 'header_size' => 0, 'total_time' => 0.1],
-            '{"error":{"message":"boom"}}',
-            "HTTP/1.1 500\r\nContent-Type: application/json\r\n"
-        ));
-        $compactor = new LlmCompactor($this->clientOn($factory), 'm');
+        $transport = new FakeChatTransport([], new AgentException('transport server error: boom', 622));
+        $compactor = new LlmCompactor($transport, 'm');
 
         try {
             $compactor->compact([['role' => 'user', 'content' => 'q']]);
@@ -89,8 +78,7 @@ final class LlmCompactorTest extends TestCase
 
     public function testEmptySegmentThrows612(): void
     {
-        $factory = new FakeRequestFactory();
-        $compactor = new LlmCompactor($this->clientOn($factory), 'm');
+        $compactor = new LlmCompactor(new FakeChatTransport([]), 'm');
 
         try {
             $compactor->compact([]);
@@ -102,9 +90,7 @@ final class LlmCompactorTest extends TestCase
 
     public function testEmptyContentReplyThrows612(): void
     {
-        $factory = new FakeRequestFactory();
-        $factory->queue($this->chatResponse(''));
-        $compactor = new LlmCompactor($this->clientOn($factory), 'm');
+        $compactor = new LlmCompactor(new FakeChatTransport([$this->chatResult('')]), 'm');
 
         try {
             $compactor->compact([['role' => 'user', 'content' => 'q']]);
@@ -114,58 +100,25 @@ final class LlmCompactorTest extends TestCase
         }
     }
 
-    public function testSummaryMaxTokensPassedAsExtra(): void
+    public function testSummaryMaxTokensAndModelPassedAsOptions(): void
     {
-        $factory = new FakeRequestFactory();
-        $factory->queue($this->chatResponse('ok'));
-        $compactor = new LlmCompactor($this->clientOn($factory), 'm', 512);
+        $transport = new FakeChatTransport([$this->chatResult('ok')]);
+        $compactor = new LlmCompactor($transport, 'm', 512);
 
         $compactor->compact([['role' => 'user', 'content' => 'q']]);
 
-        $payload = json_decode((string) $factory->lastSent()['body'], true);
-        self::assertIsArray($payload, 'chat request body should be JSON');
-        self::assertSame(512, $payload['max_tokens']);
+        self::assertSame('m', $transport->calls[0]['options']['model']);
+        self::assertSame(512, $transport->calls[0]['options']['max_tokens']);
     }
 
-    // ---------- 替身(同 PluginRegistryTest::requestOn 模式) ----------
+    // ---------- 数据 ----------
 
-    private function clientOn(FakeRequestFactory $factory): OpenAIClient
+    private function chatResult(string $content): ChatResult
     {
-        $request = new class($factory) extends Request {
-            private $factory;
-
-            public function __construct(FakeRequestFactory $factory)
-            {
-                parent::__construct();
-                $this->factory = $factory;
-            }
-
-            public function send(string $method, string $url, $body = null, array $headers = []): Response
-            {
-                $this->factory->record($method, $url, $body, $headers);
-
-                $responses = $this->factory->responses;
-
-                return $responses !== [] ? $responses[count($responses) - 1] : new Response(['http_code' => 200, 'header_size' => 0, 'total_time' => 0.1], '{}', '');
-            }
-        };
-
-        $options = (new RequestOptions())
-            ->withDefaultHeaders(['Authorization' => 'Bearer sk-test', 'Content-Type' => 'application/json']);
-        $sealed = $request->withOptions(static fn (RequestOptions $o): RequestOptions => $options);
-
-        return new OpenAIClient('sk-test', $sealed, 'https://unit.invalid/v1');
-    }
-
-    private function chatResponse(string $content): Response
-    {
-        return new Response(
-            ['http_code' => 200, 'header_size' => 0, 'total_time' => 0.1],
-            json_encode([
-                'choices' => [['message' => ['role' => 'assistant', 'content' => $content], 'finish_reason' => 'stop']],
-                'usage'   => ['prompt_tokens' => 1, 'completion_tokens' => 1, 'total_tokens' => 2],
-            ]),
-            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
-        );
+        return new ChatResult($content, null, 'stop', [], [
+            'prompt_tokens'     => 1,
+            'completion_tokens' => 1,
+            'total_tokens'      => 2,
+        ]);
     }
 }

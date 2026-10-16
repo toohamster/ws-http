@@ -9,13 +9,17 @@ use CcGpt\Ui\Output;
 use Ws\Http\NanoGpt\Agent;
 use Ws\Http\NanoGpt\Preset;
 use Ws\Http\NanoGpt\Sandbox;
-use Ws\Http\Plugin\OpenAI\Client;
+use Ws\Http\NanoGpt\Transport\ChatTransportInterface;
+use Ws\Http\NanoGpt\Transport\GenericOpenAiTransport;
+use Ws\Http\NanoGpt\Transport\OpenAiCompatibleTransport;
+use Ws\Http\NanoGpt\Transport\OrcaRouterTransport;
 
 /**
- * REPL 主程序(design/21 §8):读输入 → 命令 or Agent->run() 渲染事件流。
+ * REPL 主程序(design/21 §8;design/28 D3 装配修订):读输入 → 命令 or Agent->run() 渲染事件流。
  *
- * 装配(design/21 §8.1):Preset → 工具注册进 Agent + ModelSource 注入 /model;
- * 配置三层:env(CC_GPT_API_KEY)> cc-gpt/.settings.json > 提示 /init。
+ * 装配(design/28 §5):settings.adapter → Transport 厂商类(对话/压缩/探测共用同一实例);
+ * ModelProvider 适配器薄壳化(目录解析归 Transport::capabilities);配置三层:
+ * env(CC_GPT_API_KEY)> cc-gpt/.settings.json > 提示 /init。
  */
 final class Application
 {
@@ -70,6 +74,8 @@ final class Application
 
     /**
      * 内建命令集(壳恒注册;使用者可在 registry 上追加)。
+     * Compact 的 compactor 延迟到 runAgentTurn(装配期 Transport 未必就绪;
+     * 同一 Transport 实例,design/28 D3)。
      *
      * @return CommandInterface[]
      */
@@ -82,7 +88,7 @@ final class Application
             new Command\Help(),
             new Command\Quit(),
             new Command\Compact(new \Ws\Http\NanoGpt\LlmCompactor(
-                new Client($this->context->settings->get('apiKey') ?: 'unset', null, 'https://unit.invalid/v1'),
+                $this->context->transport ?? new GenericOpenAiTransport(['api_key' => 'unset']),
                 'gpt-4o-mini'
             ), $this->context->sessionStore),
             new Command\Rewind(),
@@ -103,7 +109,8 @@ final class Application
     }
 
     /**
-     * Agent 装配:key 三层(env > settings);Preset 工具注入。
+     * Agent 装配(design/28 D3):settings.adapter → Transport 厂商类;
+     * key/baseUrl 三层(env > settings);Preset 工具注入。
      */
     public function bootstrapAgent(Sandbox $sandbox, ?Preset $preset = null): void
     {
@@ -119,21 +126,21 @@ final class Application
 
         $baseUrl = \getenv('CC_GPT_BASE_URL');
         if ($baseUrl === false || $baseUrl === '') {
-            $baseUrl = (string) $this->context->settings->get('baseUrl', self::DEFAULT_BASE_URL);
+            $baseUrl = (string) $this->context->settings->get('baseUrl', $this->defaultBaseUrl());
         }
 
-        $client = new Client($apiKey, null, $baseUrl);
-        $this->context->probeClient = $client; // 探测用(与 agent 同凭据,design/21 §8.2 级联)
+        $transport = $this->buildTransport((string) $apiKey, $baseUrl);
+        $this->context->transport = $transport; // 压缩/探测共用(与 agent 同凭据)
         $model = (string) $this->context->settings->get('model', '');
         $this->context->model = $model;
-        $this->context->agent = new Agent($client, $model !== '' ? $model : 'gpt-4o-mini');
+        $this->context->agent = new Agent($transport, $model !== '' ? $model : $this->defaultModel());
 
         // M4:窗口预算(模型能力档案 settings.modelProfiles[<model>] 优先,settings.contextWindow 兜底)
-        $this->context->budget = $this->buildBudget($model !== '' ? $model : 'gpt-4o-mini');
+        $this->context->budget = $this->buildBudget($model !== '' ? $model : $this->defaultModel());
 
         $preset = $preset ?? $this->defaultPreset(
             $sandbox,
-            $this->modelSource($client)
+            $this->modelSource($transport)
         );
         if ($preset !== null) {
             foreach ($preset->tools() as $tool) {
@@ -154,23 +161,56 @@ final class Application
     }
 
     /**
+     * 服务身份 → Transport 厂商类(design/28 §5 维度 B:知识有家)。
+     * settings.adapter 显式分派(/init 选择时写入);未选择/未知 id →
+     * GenericOpenAiTransport(逃生门:baseUrl 经 config 注入)。
+     */
+    private function buildTransport(string $apiKey, string $baseUrl): ChatTransportInterface
+    {
+        $config = ['api_key' => $apiKey, 'base_url' => $baseUrl];
+
+        $adapterId = $this->context->settings->get('adapter');
+        if (\is_string($adapterId) && $adapterId !== '') {
+            foreach (\CcGpt\Command\Init::adapterClasses() as $candidate) {
+                if ($candidate::id() === $adapterId) {
+                    return $this->transportForAdapter($candidate::id(), $config);
+                }
+            }
+        }
+
+        return new GenericOpenAiTransport($config);
+    }
+
+    /**
+     * adapter id → Transport 厂商类映射(壳层装配表;新增厂商 = Transport 类 +
+     * 此处一行 + ModelProvider 适配器类)。
+     *
+     * @param array{api_key: string, base_url: string} $config
+     */
+    private function transportForAdapter(string $adapterId, array $config): ChatTransportInterface
+    {
+        switch ($adapterId) {
+            case 'orcarouter':
+                return new OrcaRouterTransport($config);
+            case 'generic':
+            default: // generic 走 GenericOpenAiTransport(config 的 baseUrl 即服务端点)
+                return new GenericOpenAiTransport($config);
+        }
+    }
+
+    /**
      * settings.adapter 显式分派(design/21 §8.2 三次评审):/init 选择时写入,
      * 此处按 id 查表定位;无选择 → settings.models 手写档案或 null(手动 /model <id>)。
-     * 无 host 字符串嗅探(已否决)。
+     * 无 host 字符串嗅探(已否决)。目录解析归 Transport(适配器薄壳委托 capabilities)。
      */
-    private function modelSource(Client $client): ?\CcGpt\ModelProvider\ModelSourceInterface
+    private function modelSource(ChatTransportInterface $transport): ?\CcGpt\ModelProvider\ModelSourceInterface
     {
         $adapterId = $this->context->settings->get('adapter');
         if (\is_string($adapterId) && $adapterId !== '') {
-            $class = null;
             foreach (\CcGpt\Command\Init::adapterClasses() as $candidate) {
                 if ($candidate::id() === $adapterId) {
-                    $class = $candidate;
-                    break;
+                    return new $candidate($transport);
                 }
-            }
-            if ($class !== null) {
-                return new $class($client);
             }
         }
 
@@ -263,10 +303,12 @@ final class Application
         }
 
         // 自动压缩(design/24 §7):每轮 run 前 needsCompact → 保留 2 轮;compactAuto=false 关闭
-        \CcGpt\Command\Compact::maybeAuto($this->context, new \Ws\Http\NanoGpt\LlmCompactor(
-            $this->context->probeClient ?? new Client('unset', null, self::DEFAULT_BASE_URL),
-            $this->context->model !== '' ? $this->context->model : 'gpt-4o-mini'
-        ));
+        if ($this->context->transport !== null) {
+            \CcGpt\Command\Compact::maybeAuto($this->context, new \Ws\Http\NanoGpt\LlmCompactor(
+                $this->context->transport,
+                $this->context->model !== '' ? $this->context->model : $this->defaultModel()
+            ));
+        }
 
         try {
             foreach ($this->context->agent->run($input) as $event) {
@@ -275,6 +317,19 @@ final class Application
         } catch (\Ws\Http\NanoGpt\AgentException $e) {
             $this->output->writeln('agent error [' . $e->getCode() . ']: ' . $e->getMessage(), 'red');
         }
+    }
+
+    /**
+     * 厂商默认模型兜底(装配层;settings.model 未选时 Transport 厂商常量为主)。
+     */
+    private function defaultModel(): string
+    {
+        return 'gpt-4o-mini';
+    }
+
+    private function defaultBaseUrl(): string
+    {
+        return self::DEFAULT_BASE_URL;
     }
 
     /**

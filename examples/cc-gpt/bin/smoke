@@ -4,11 +4,12 @@
 declare(strict_types=1);
 
 /**
- * N4 集成冒烟(design/21 §10):orcarouter 三链验证。
+ * 集成冒烟(design/21 §10;design/28 D3 装配修订):orcarouter 三链验证——
+ * 全链走 Transport 厂商类(目录/对话/工具同一实例)。
  *
- *   链1 models:GET /models → 过滤 free → 采集能力字段(context_length / max_completion_tokens)
- *   链2 chat:  一轮对话 → 响应结构 + usage
- *   链3 tools: 带工具的 agent loop → tool_calls → 执行 → 回填 → 文本
+ *   链1 models:OrcaRouterTransport::capabilities → free 目录(S3 观察字段形态)
+ *   链2 chat:  Transport→Agent 一轮对话 → ChatResult 内容 + usage
+ *   链3 tools: Agent loop 带工具 → tool_calls → 执行 → 回填 → 文本
  *
  * 配置与壳同源(design/21 §8 配置三层):env(CC_GPT_API_KEY / CC_GPT_BASE_URL)
  * > examples/cc-gpt/.settings.json(/init 写入)。
@@ -22,7 +23,7 @@ declare(strict_types=1);
 
 use Ws\Http\NanoGpt\Agent;
 use Ws\Http\NanoGpt\Tool\WriteFileTool;
-use Ws\Http\Plugin\OpenAI\Client;
+use Ws\Http\NanoGpt\Transport\OrcaRouterTransport;
 
 require __DIR__ . '/../../../vendor/autoload.php';
 
@@ -50,13 +51,10 @@ $apiKey = (string) $apiKey;
 
 $baseUrl = getenv('CC_GPT_BASE_URL');
 if ($baseUrl === false || $baseUrl === '') {
-    $baseUrl = $settingsData['baseUrl'] ?? null;
-}
-if (!is_string($baseUrl) || $baseUrl === '') {
-    $baseUrl = 'https://api.openai.com/v1';
+    $baseUrl = is_string($settingsData['baseUrl'] ?? null) ? $settingsData['baseUrl'] : 'https://api.orcarouter.ai/v1';
 }
 
-$client = new Client($apiKey, null, $baseUrl);
+$transport = new OrcaRouterTransport(['api_key' => $apiKey, 'base_url' => (string) $baseUrl]);
 $GLOBALS['smoke_results'] = [];
 
 /**
@@ -70,76 +68,51 @@ function record(string $chain, bool $passed, string $detail): void
 
 $results = &$GLOBALS['smoke_results'];
 
-// ── 链1 models ────────────────────────────────────────────────
+// ── 链1 models(Transport::capabilities:free 过滤在厂商类 modelFromEntry)──
 $freeModels = [];
-$capFields = [];
 try {
-    $response = $client->models()->list();
-    $body = $response->body;
-    if (is_object($body) && isset($body->data) && is_array($body->data)) {
-        foreach ($body->data as $m) {
-            $id = (string) ($m->id ?? '');
-            if ($id === '' || stripos($id, 'free') === false) {
-                continue;
-            }
-            $freeModels[] = $id;
-            // 能力字段探测(design/24 §6.1 校准输入):网关扩展字段有则记
-            $capFields[$id] = [
-                'context_length'        => $m->context_length ?? $m->context_window ?? null,
-                'max_completion_tokens' => $m->max_completion_tokens ?? $m->max_output_tokens ?? null,
-            ];
-        }
+    $caps = $transport->capabilities();
+    foreach ($caps['models'] as $info) {
+        $freeModels[$info->id()] = ['pricing' => $info->pricing()];
     }
-    record('models', $freeModels !== [], count($freeModels) . ' free models; sample: ' . (json_encode(array_slice($capFields, 0, 3), JSON_UNESCAPED_SLASHES) ?: 'n/a'));
+    record('models', $freeModels !== [], count($freeModels) . ' free models; sample: ' . (json_encode(array_slice($freeModels, 0, 3, true), JSON_UNESCAPED_SLASHES) ?: 'n/a'));
 } catch (\Throwable $e) {
     record('models', false, 'exception: ' . $e->getMessage());
 }
 
 // 选模型:参数 > env > free 列表第一个
-$model = $argv[1] ?? (getenv('CC_GPT_SMOKE_MODEL') ?: ($freeModels[0] ?? ''));
-if ($model === '') {
-    record('chat', false, 'no model available (free list empty)');
-    record('tools', false, 'no model available (free list empty)');
-    $failed = 0;
-    foreach ($results as [$c, $p, $d]) {
-        if (!$p) {
-            $failed++;
-        }
-    }
-    exit($failed > 0 ? 1 : 0);
-}
+$model = $argv[1] ?? (getenv('CC_GPT_SMOKE_MODEL') ?: (array_key_first($freeModels) ?? 'deepseek/deepseek-v4-flash-free'));
 printf("using model: %s\n", $model);
 
-// ── 链2 chat ──────────────────────────────────────────────────
+// ── 链2 chat(Transport→Agent 一轮)────────────────────────────
 try {
-    $response = $client->chat()->create(
-        [['role' => 'user', 'content' => 'Reply with exactly one word: pong']],
-        $model
-    );
-    $body = $response->body;
-    $content = is_object($body) ? (string) ($body->choices[0]->message->content ?? '') : '';
-    $usage = is_object($body) && is_object($body->usage ?? null)
-        ? sprintf('usage(total=%d)', (int) $body->usage->total_tokens)
-        : 'usage(missing)';
-    if ($content === '') {
-        // 失败诊断:raw body 前 300 字符取证(服务端瞬时形态/解析问题归因用)
-        $raw = (string) ($response->rawBody ?? '');
-        fwrite(STDERR, 'chat FAIL diagnosis: body type=' . gettype($body)
-            . ' raw[0..300]=' . mb_substr($raw, 0, 300) . "\n");
+    $agent = new Agent($transport, $model);
+    $events = iterator_to_array($agent->run('Reply with exactly one word: pong'));
+
+    $text = '';
+    foreach ($events as $e) {
+        if ($e['type'] === 'text') {
+            $text = $e['text'];
+        }
     }
-    record('chat', $content !== '', sprintf('model=%s %s content=%s', $model, $usage, trim($content) !== '' ? '"' . trim(mb_substr($content, 0, 60)) . '"' : '(empty)'));
+    $usage = $agent->conversation()->usage();
+    if ($text === '') {
+        $errs = array_values(array_filter($events, static fn (array $e): bool => $e['type'] === 'error'));
+        fwrite(STDERR, 'chat FAIL diagnosis: ' . ($errs !== [] ? $errs[0]['message'] : '(no text, no error events)') . "\n");
+    }
+    record('chat', $text !== '', sprintf('model=%s usage(total=%d) content=%s', $model, $usage['total_tokens'], $text !== '' ? '"' . trim(mb_substr($text, 0, 60)) . '"' : '(empty)'));
 } catch (\Throwable $e) {
-    record('chat', false, 'exception: ' . $e->getMessage());
+    record('chat', false, sprintf('%s [%d]: %s', get_class($e), $e->getCode(), $e->getMessage()));
 }
 
-// ── 链3 tools ─────────────────────────────────────────────────
+// ── 链3 tools(Agent loop 带工具)──────────────────────────────
 // 冒烟沙箱:examples/cc-gpt/.runtime/smoke(草稿区,目录常驻语义一致)
 $smokeRoot = $shellRoot . '/.runtime/smoke';
 if (!is_dir($smokeRoot) && !@mkdir($smokeRoot, 0755, true) && !is_dir($smokeRoot)) {
     record('tools', false, "cannot create smoke sandbox {$smokeRoot}");
 } else {
     try {
-        $agent = new Agent($client, $model, 4);
+        $agent = new Agent($transport, $model, 4);
         $agent->tools()->register(new WriteFileTool(new \Ws\Http\NanoGpt\Sandbox($smokeRoot)));
 
         $toolCalls = [];
