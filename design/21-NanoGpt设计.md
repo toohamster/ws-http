@@ -3,16 +3,18 @@
 > 层归属:**新子命名空间 `Ws\Http\NanoGpt\`**(与 Plugin 平级,依赖单向:NanoGpt → core/functional/Plugin\OpenAI;core/functional/Plugin 不感知它)。
 > 使用者:要在任意项目中复用 OpenAI 协议 agent loop 的开发者;CLI 案例作者(examples/cc-gpt 是它的第一个消费壳)。
 > 决策:直接以**组件**形态落位(不先做 example 再搬家);理由见 design/21 评审记录 §二——agent loop + 工具协议 + 沙箱是建立在 OpenAI 协议上的可复用编排层,不属于 core(HTTP)也不满足 plugin 三件套(认证+端点+语义化方法)判据,塞进 plugin 反而破坏"plugin 机制最小化"承诺(design/17 §2)。
+> **§1 修订(design/28,2026-10-16 落档)**:编排与传输分离——loop/工具/沙箱/会话是**协议无关资产**;传输经 `ChatTransportInterface`(design/28 §2)可替换,Agent 不再直接依赖 `Plugin\OpenAI\Client`。多厂商接入与重试/错误分类见 design/28。
 
-**简单路径**(使用者视角,只面对 Agent 与工具注册):
+**简单路径**(使用者视角,只面对 Agent 与工具注册;design/28 §1 修订:第一行代码是多厂商时代的 Transport):
 
 ```php
 use Ws\Http\NanoGpt\Agent;
 use Ws\Http\NanoGpt\Tool\{ReadFileTool, HttpGetTool};
+use Ws\Http\NanoGpt\Transport\DeepSeekTransport;
 
 $agent = new Agent(
-    new \Ws\Http\Plugin\OpenAI\Client($apiKey, null, 'https://orcarouter.ai/v1'),
-    'gpt-4o-mini'
+    new DeepSeekTransport(['api_key' => $apiKey]),   // 厂商类即接入;换厂商 = 换类
+    'deepseek-chat'
 );
 $agent->tools()->register(new ReadFileTool($sandbox));
 $agent->tools()->register(new HttpGetTool());
@@ -24,21 +26,21 @@ foreach ($agent->run('帮我读一下 cc-gpt/README.md 并总结') as $event) {
 $agent->conversation()->usage();   // 跨轮累积的 token 用量
 ```
 
-> 简单路径使用者不需要知道:tool_calls 如何解析、tool 消息如何回填、循环何时终止。这是"复杂的事情必须可能"的部分,见 §3。
+> 简单路径使用者不需要知道:tool_calls 如何解析、tool 消息如何回填、循环何时终止、各厂商请求体差异如何翻译。这是"复杂的事情必须可能"的部分,见 §3 与 design/28。
 
 ## 1. NanoGpt 是什么、不是什么
 
-**是**:
+**是**(design/28 §1 修订后口径):
 
-1. **Agent loop 引擎**:`messages + tools → POST /chat/completions → 解析 tool_calls → 执行工具 → role=tool 结果回填 → 循环`的状态机,直至产出文本或达到 maxTurns;
+1. **Agent loop 引擎**:`messages + tools → Transport → 解析 tool_calls → 执行工具 → role=tool 结果回填 → 循环`的状态机,直至产出文本或达到 maxTurns;
 2. **工具协议**:`ToolInterface`(name/description/jsonSchema/execute)+ `ToolRegistry` 注册表 + JSON Schema 汇总,映射到 OpenAI tools 参数;
 3. **沙箱**:`Sandbox` 集中实现 cwd 锚定 + `realpath` 前缀穿越校验,内建文件工具统一走它;
 4. **会话状态**:`Conversation` 持有 messages[] 与跨轮 usage 累积。
 
-**不是**(防过度设计):
+**不是**(防过度设计;design/28 修订):
 
-- 不是第二个 OpenAI 客户端:所有 HTTP 调用复用 `Plugin\OpenAI\Client`(chat/models 端点),NanoGpt 不直接发请求、不重复认证逻辑;
-- 不是消息对象模型/流式协议:messages 保持纯数组(与 OpenAI wire 格式一致),不做流式(扩展预留);
+- 不是任何厂商的客户端:编排层连 OpenAI 兼容传输都不实现,只定义边界(`ChatTransportInterface`)——认证/端点/请求体翻译/响应解析/重试/错误分类完整落在 Transport 实现(design/28 §2–§5);
+- 不是消息对象模型/流式协议:messages 保持纯数组(wire 格式 = 编排层通用语),不做流式(扩展预留,design/28 §6 留档);
 - 不是 CLI 框架:REPL/命令/UI 全部在 examples/cc-gpt 壳层,组件不依赖任何 I/O;
 - 不是 plugin:不走 PluginInterface/PluginRegistry 机制,独立子命名空间,bootDefaults 不涉及它。
 

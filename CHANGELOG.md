@@ -2,6 +2,23 @@
 
 所有显著变更记录于此。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [2.6.0] - 2026-10-16
+
+### Added
+- 厂商接入层(design/28):`NanoGpt\Transport\` 子命名空间——`ChatTransportInterface`(chat + capabilities,ModelSource 语义并入)、`OpenAiCompatibleTransport` 协议族抽象基类(重试完整语义:Retry-After 头优先/指数退避/on_status;错误语义分类 620–624:auth/rate-limit/server/timeout/unexpected-response)、每厂商一个具体类(OpenAi/DeepSeek/Qwen/Kimi/Moonshot/MiniMax/OrcaRouter,覆盖常量即接入)+ `GenericOpenAiTransport` 逃生门(config 注入 baseUrl/default_model)
+- `ChatResult` 值对象:chat 响应解析收口(容错解析 + tool_call wire 保留 + reasoning_content 兼容)
+- Agent/壳换契约(design/28 D2/D3):Agent 构造收 `ChatTransportInterface`(编排层源码零厂商名);传输失败以语义分类 code 透传 error 事件;model/tools 请求级透传(options['model'] 覆盖厂商默认)
+- cc-gpt 装配切换:settings.adapter → Transport 厂商类(共享实例:Agent/压缩/探测);ModelProvider 适配器薄壳化(目录解析下沉 Transport::modelFromEntry 差异槽,free 过滤/pricing 归一落厂商类)
+
+### Changed
+- `LlmCompactor`/cc-gpt `ContextWindowProbe` 传输依赖 Client → ChatTransportInterface
+- examples/cc-gpt/bin/smoke 三链重写为 Transport 全链(capabilities/chat/tools)
+- 兼容性:`Agent` 构造签名变更(Client → ChatTransportInterface);`Plugin\OpenAI\Client` 保持不动(人的业务对接面,design/17 定位)
+
+### Verified
+- 真实链冒烟 3/3(OrcaRouterTransport→Agent,deepseek/deepseek-v4-flash-free:models 6 free/chat usage=112/tools write_file 全链)
+- 全量 559 tests / 1323 assertions;PHPStan 0 error
+
 ## [2.5.0] - 2026-10-08
 
 ### Added
