@@ -9,7 +9,7 @@ use Ws\Http\Method;
 use Ws\Http\StrKit;
 
 /**
- * 场景脚本解析器(design/14 §5:校验规则 V1–V13)。
+ * 场景脚本解析器(design/14 §5:校验规则 V1–V13;V19 见 design/27 §2)。
  *
  * 加载期一次性完成全部校验;失败抛 AutomatedException(code 401/402),消息含 JSON Pointer。
  * 已知取舍:V10(跨步骤变量引用)保守策略——加载期不校验,运行期按 design/15 §4.3 处理。
@@ -63,7 +63,7 @@ final class ScenarioParser
      */
     public function parseArray(array $data): Scenario
     {
-        $this->checkFields($data, '$', ['id', 'name', 'description', 'settings', 'variables', 'steps', 'datasets', '$schema']);
+        $this->checkFields($data, '$', ['id', 'name', 'description', 'settings', 'variables', 'steps', 'datasets', 'outputs', '$schema']);
 
         // V2:顶层必填
         foreach (['id', 'name', 'steps'] as $required) {
@@ -116,7 +116,82 @@ final class ScenarioParser
         // steps(V4 id 唯一 / V5 method×mode / V6 时间 / V7 auth+proxy / V9 表达式 / V11 template)
         $scenario->steps = $this->parseSteps($data['steps']);
 
+        // V19(design/27 §2):outputs 白名单——字符串数组/唯一/合法名/可产出
+        if (isset($data['outputs'])) {
+            $scenario->outputs = $this->parseOutputs(
+                $data['outputs'],
+                $scenario->variables,
+                $data['steps']
+            );
+        }
+
         return $scenario;
+    }
+
+    // ---------- outputs(design/27 V19) ----------
+
+    /**
+     * V19:outputs 必须是字符串数组,元素唯一、符合变量命名规则;每个名字必须
+     * 可产出——出现在 variables 声明或任一步骤的 extract[].var / pause var 中
+     * (防拼错静默返回空)。
+     *
+     * @param mixed $raw
+     * @param array<int, array{name: string, value: mixed, secret?: bool}> $variables
+     * @param array<int, mixed> $rawSteps
+     * @return string[]
+     */
+    private function parseOutputs($raw, array $variables, array $rawSteps): array
+    {
+        if (!\is_array($raw) || $raw === []) {
+            throw $this->error('/outputs', 'must be a non-empty array of variable names');
+        }
+
+        // 可产出集合:variables 声明 + 全部步骤 extract[].var + pause var
+        $producible = [];
+        foreach ($variables as $entry) {
+            $producible[$entry['name']] = true;
+        }
+        foreach ($rawSteps as $step) {
+            if (!\is_array($step)) {
+                continue; // 步骤自身结构错误由 parseSteps 报(更精确的 pointer)
+            }
+            if (isset($step['var']) && \is_string($step['var'])) {
+                $producible[$step['var']] = true; // pause var
+            }
+            foreach (['extract'] as $slot) {
+                if (!isset($step[$slot]) || !\is_array($step[$slot])) {
+                    continue;
+                }
+                foreach ($step[$slot] as $rule) {
+                    if (\is_array($rule) && isset($rule['var']) && \is_string($rule['var'])) {
+                        $producible[$rule['var']] = true;
+                    }
+                }
+            }
+        }
+
+        $seen = [];
+        foreach ($raw as $i => $name) {
+            $pointer = sprintf('/outputs/%d', $i);
+            if (!\is_string($name)) {
+                throw $this->error($pointer, 'must be a string variable name');
+            }
+            if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $name)) {
+                throw $this->error($pointer, sprintf('"%s" does not match [A-Za-z_][A-Za-z0-9_]*', $name));
+            }
+            if (isset($seen[$name])) {
+                throw $this->error($pointer, sprintf('duplicate output name "%s"', $name));
+            }
+            if (!isset($producible[$name])) {
+                throw $this->error(
+                    $pointer,
+                    sprintf('"%s" is not producible (declare it in variables or produce it via extract/pause var)', $name)
+                );
+            }
+            $seen[$name] = true;
+        }
+
+        return array_values($raw);
     }
 
     // ---------- variables ----------
