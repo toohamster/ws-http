@@ -10,6 +10,10 @@
 - `StaticRequestFactory`(注入式工厂):场景引擎复用注入 http(工具集成/测试装配面)
 - 设计进度台账 `design/PROGRESS.md`:全设计落地状态/实施步骤完成度/收口 tag 一页表 + 悬置工作清单 + 版本时间线
 
+### Changed
+- README/composer 定位描述对齐 v2.7.0:能力表"三层"→"四层"(NanoGpt 多厂商 agent 编排独立成行 + Transport 代码示例);场景示例补 outputs 取数形态;keywords 补 llm/ai-agent/openai(Packagist 检索面)
+- design/26 Skill 修订(对齐 v2.7.0 现状 + review P1–P4):执行路径补 M4 自动压缩链路、错误码 613/614 沿用 design/25、注入位 Memory 无冲突经 M4 实证、发布方式改纯 semver、触发条件标注已满足——**实现已确认启动**
+
 ## [2.6.0] - 2026-10-16
 
 ### Added
