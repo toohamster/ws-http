@@ -3,6 +3,7 @@
 > 层归属:**壳段(`CcGpt\`)为主,装载基建与 design/25 §4 同源**(组件段的 Loader 扩展一种 schema)。
 > 状态:**仅落需求,实现等后续确认**(依赖 design/25 层 2 描述文件装载先落地)。
 > 背景:工具三层分类评审(2026-09-21)——层 1 代码 CommandTool(design/25 实现)/ 层 2 声明式描述文件(design/25 实现)/ **层 3 Skill(本设计)**。层 3 与层 2 的差异:粒度从"单命令"升到"任务级能力包"(指令模板 + 多工具编排),交互形态为 `/skill name args`。
+> **修订(2026-10-20,对齐 v2.7.0 现状)**:① 执行路径补 M4 自动压缩链路;② 错误码补 613/614(design/25 已钉);③ 注入位决策的 Memory 无冲突判断经 M4 实证;⑥ 发布方式改纯 semver(描述后缀 tag 规范已废弃);⑦ 触发条件已满足,标注状态。原 §6 实施规模预估维持。
 
 **简单路径**(使用者视角):
 
@@ -46,12 +47,13 @@ you> /skill json-report data.json
 }
 ```
 
-校验规则(V 序列属壳层,编号 S1–S4 避免与场景 V 混淆):
+校验规则(V 序列属壳层,编号 S1–S4 避免与场景 V 混淆;**错误码沿用 design/25 §6 已钉段——本设计不发明新码**):
 
-- **S1**:name 必填且匹配 `^[a-z][a-z0-9-]*$`;skill 名之间唯一(装载期冲突 → 提示文件名);
-- **S2**:instruction 必填非空;`{slot}` 占位必须在 arguments 中有定义(防模板漏参);arguments 中未被模板引用的槽提示警告(不拒绝);
-- **S3**:arguments 槽 schema 与 design/25 §3 同构(type/description/required/default,不支持嵌套);
-- **S4**:allowedTools 若存在,必须是数组且**装载期不校验工具名存在性**(工具可能后注册;执行期校验,未知工具名在渲染时忽略并提示)。
+- **S1**:name 必填且匹配 `^[a-z][a-z0-9-]*$`;skill 名之间唯一(装载期冲突 → 提示文件名);**违例 → 613**(描述文件非法,消息含文件名);
+- **S2**:instruction 必填非空(**→ 613**);`{slot}` 占位必须在 arguments 中有定义(防模板漏参,**→ 613**);arguments 中未被模板引用的槽提示警告(不拒绝);
+- **S3**:arguments 槽 schema 与 design/25 §3 同构(type/description/required/default,不支持嵌套);**违例 → 613**;
+- **S4**:allowedTools 若存在,必须是数组(**形态违例 → 613**)且**装载期不校验工具名存在性**(工具可能后注册;执行期校验,未知工具名在渲染时忽略并提示);
+- **执行期参数校验**:required 槽缺失 → **614**(design/25 §6:参数槽校验失败经命令提示补参,不发请求,不抛到 Agent 层)。
 
 ## 3. 注入位决策(评审钉死:user 消息渲染,非 system 叠加)
 
@@ -64,7 +66,8 @@ you> /skill json-report data.json
 | 上下文成本 | 指令每轮都在历史里(超长 skill 由 /compact 自然处理) | 不占 user 位 |
 
 - 渲染规则:`{slot}` 替换(未提供的 required 槽 → 提示补参,不发请求);渲染后文本前缀 `[skill: json-report] `(会话历史中可辨识,且 auto-compact 摘要时模型能理解这是技能调用);
-- allowedTools 的执行期约束实现:**渲染进指令文本**("本次任务只允许使用:...")——不做运行期工具注册表裁剪(那是 Agent 状态变更,越界);约束是提示性的,与"结构安全靠 CommandTool 骨架"分层一致:危险操作本就被工具层挡住,allowedTools 只是任务聚焦。
+- allowedTools 的执行期约束实现:**渲染进指令文本**("本次任务只允许使用:...")——不做运行期工具注册表裁剪(那是 Agent 状态变更,越界);约束是提示性的,与"结构安全靠 CommandTool 骨架"分层一致:危险操作本就被工具层挡住,allowedTools 只是任务聚焦;
+- **Memory 无冲突(M4 实证,2026-10-20)**:M4 落地后 Memory 经 `applyMemoryToSystem` 确实占 system 注入位——本节当初"user 消息注入不与 Memory 抢 system"的判断由推测变为验证成立,选型维持。
 
 ## 4. 壳层:/skill 命令(CcGpt\Command\Skill)
 
@@ -76,6 +79,8 @@ you> /skill json-report data.json
 
 装配:壳 bootstrap 时 `SkillLoader(skills/)`(与 tools/ 装载同基建)→ /skill 命令持有清单;skills/ 目录在壳根(design/21 §8 三区之外的第四区?**否**——skills/ 是**用户资产、随壳入库可分享**,放壳根且**不 gitignore**;与 .work(产出)/.runtime(草稿)生命周期不同)。
 
+**执行路径(修订 ①,对齐 M4 后现状)**:/skill 渲染产出消息 → **`Application::runAgentTurn($message)`**(公开方法,命令可发起 agent 轮)→ **Compact::maybeAuto(每轮 run 前自动压缩,design/24 §7)**→ Agent run → renderEvent 事件流。即 **skill 消息天然过自动压缩**——指令模板过长时由 /compact 机制兜底(§3"上下文成本"行的预期成立,链路零特殊处理);自动压缩亦会消费 skill 前缀标记,模型可理解这是技能调用(风险②的对策在压缩路径同样生效)。
+
 ## 5. 测试要点
 
 | 用例组 | 覆盖 |
@@ -83,14 +88,14 @@ you> /skill json-report data.json
 | SkillLoader(与 tool loader 同源回归) | 合法装载;S1–S4 各拒绝态;skill 名冲突;*通配 |
 | 渲染 | 参数替换/required 缺失提示/{slot} 未定义拒绝(S2)/前缀标记 |
 | /skill 命令 | 无参列表;执行走 renderEvent 事件流;--info;未知 skill 名 |
-| 会话兼容 | skill 消息在 snapshot/restore 往返中原样;被 /compact 正常摘要;rewind 可回退到 skill 调用前 |
+| 会话兼容 | skill 消息在 snapshot/restore 往返中原样;被 /compact 正常摘要;**触发 auto-compact 时被正常摘要(修订 ①)**;rewind 可回退到 skill 调用前 |
 | allowedTools | 装载期不校验存在性;渲染期未知工具名忽略 + 提示 |
 
 ## 6. 实施前置与触发条件
 
 - **前置**:design/25 C3(描述文件装载)已落地——SkillLoader 复用其扫描/校验骨架;
-- **触发条件**(何时启动实现):层 2 描述文件工具在真实使用中跑通(至少 1 个自建 .tool.json 在日常使用),且出现"固化操作流程"的真实诉求(同一套多步骤说明被反复手打 ≥3 次);
+- **触发条件**(何时启动实现):层 2 描述文件工具在真实使用中跑通(至少 1 个自建 .tool.json 在日常使用),且出现"固化操作流程"的真实诉求(同一套多步骤说明被反复手打 ≥3 次)——**状态:已触发(修订 ⑦,2026-10-20)**:design/25 C3 落地后 tools/ 目录在壳中默认装载,层 2 基建跑通;固化操作流程诉求成立,启动实现;
 - **实现规模预估**:SkillLoader(~60 行,复用层 2)+ 渲染与 /skill 命令(~80 行)+ 测试——单个提交粒度;
-- **独立提交打标签**:`v2.4.x-skill` 序列。
+- **发布方式(修订 ⑥)**:~~独立提交打标签 `v2.4.x-skill` 序列~~——描述后缀 tag 规范已废弃(MEMORY.md 标签规范 2026-09-22 修订,发布走纯 semver);Skill 实现随**下次 MINOR 发布**收口(入 CHANGELOG 对应版本条目),不独立打标签。
 
-**风险与对策**:① 指令模板过长占上下文 → /compact 兜底(它就是普通消息);② skill 与用户输入混淆 → `[skill: name]` 前缀 + 模型可辨识;③ allowedTools 的提示性约束被模型无视 → 危险操作本被工具层结构性挡住(CommandTool 骨架/文件工具沙箱),skill 层不承担安全兜底职责(分层明确)。
+**风险与对策**:① 指令模板过长占上下文 → /compact 兜底(它就是普通消息;auto-compact 链路见 §4 执行路径);② skill 与用户输入混淆 → `[skill: name]` 前缀 + 模型可辨识(压缩摘要路径同样生效);③ allowedTools 的提示性约束被模型无视 → 危险操作本被工具层结构性挡住(CommandTool 骨架/文件工具沙箱),skill 层不承担安全兜底职责(分层明确)。
