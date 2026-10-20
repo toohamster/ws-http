@@ -34,7 +34,7 @@
 | [24-会话与记忆设计.md](24-会话与记忆设计.md) | NanoGpt | Conversation 演进(截断/快照/检查点)+ 会话持久化 + 上下文预算与压缩(/compact /rewind /clear /resume)+ 显式长期记忆(/memory);M1–M5 已完成(v2.5.0,2026-10-08) |
 | [25-工具谱系与声明式工具.md](25-工具谱系与声明式工具.md) | NanoGpt | 分类轴=执行体×自由度、CommandExecKernel 下沉、CommandToolBase(骨架+参数槽)、ExecTool 特例化、HttpToolBase 网络工具、描述文件(.tool.json)声明式装载(kind 分派);Tool Store/Skill 预留(design/26) |
 | [26-Skill设计.md](26-Skill设计.md) | NanoGpt/壳 | 任务级能力包:skills/*.skill.json(指令模板+参数槽+allowedTools)→ /skill 命令,注入位=user 消息渲染;仅落需求,实现待 design/25 层 2 落地后 |
-| [27-场景输出契约设计.md](27-场景输出契约设计.md) | functional | 场景作为取数函数:outputs 输出变量白名单(V19)+ ScenarioOutput 结果集出口(secret 脱敏/键序稳定);ApiFetchTool 场景形态升级 |
+| [27-场景输出契约设计.md](27-场景输出契约设计.md) | functional | 场景作为取数函数:outputs 输出变量白名单(V19)+ ScenarioOutput 结果集出口(secret 脱敏/键序稳定);ApiFetchTool 场景形态升级(scenario+vars+outputs 双形态);O1–O2 已完成(2026-10-19) |
 | [28-厂商接入层设计.md](28-厂商接入层设计.md) | NanoGpt/Transport | 编排与传输分离(切口判据:编排层零厂商名)、ChatTransportInterface(chat + capabilities 并入 ModelSource)、重试完整语义(Retry-After 优先/指数退避)、错误语义分类 620–624、双层结构(协议族抽象基类 × 每厂商具体类,7 厂商 + Generic 逃生门);D1–D3 已完成(Agent/壳/压缩/探测全走 Transport,smoke 3/3,2026-10-16);来源:3rd/php-ai-sdk 对照(参考物不入库) |
 
 ## 项目一句话概括
