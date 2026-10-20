@@ -2,6 +2,14 @@
 
 所有显著变更记录于此。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [2.7.0] - 2026-10-20
+
+### Added
+- 场景输出契约(design/27,O1–O2):场景作为取数函数——顶层 `outputs` 白名单(校验 V19:字符串数组/唯一/可产出,违例 402)+ `ScenarioOutput::extract` 结果集出口(键序 = 声明序;未声明/空 → 630;secret 脱敏继承 Report 形态)
+- `ApiFetchTool` 场景形态:`{scenario, vars?, outputs?}` 双形态取数(单请求形态保留)——场景文件 → Runner 执行 → 声明输出提取;白名单前置校验(执行前拒绝);vars 只覆盖已声明变量、outputs 只收窄不扩充;失败返回 failedSteps 明细
+- `StaticRequestFactory`(注入式工厂):场景引擎复用注入 http(工具集成/测试装配面)
+- 设计进度台账 `design/PROGRESS.md`:全设计落地状态/实施步骤完成度/收口 tag 一页表 + 悬置工作清单 + 版本时间线
+
 ## [2.6.0] - 2026-10-16
 
 ### Added
