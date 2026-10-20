@@ -1,7 +1,7 @@
 # 26 Skill(可分享的任务级能力包:声明式定义 → /skill 命令装配)
 
 > 层归属:**壳段(`CcGpt\`)为主,装载基建与 design/25 §4 同源**(组件段的 Loader 扩展一种 schema)。
-> 状态:**仅落需求,实现等后续确认**(依赖 design/25 层 2 描述文件装载先落地)。
+> 状态:**前置已满足,已确认实现(2026-10-20;发布随下次 MINOR)**。
 > 背景:工具三层分类评审(2026-09-21)——层 1 代码 CommandTool(design/25 实现)/ 层 2 声明式描述文件(design/25 实现)/ **层 3 Skill(本设计)**。层 3 与层 2 的差异:粒度从"单命令"升到"任务级能力包"(指令模板 + 多工具编排),交互形态为 `/skill name args`。
 > **修订(2026-10-20,对齐 v2.7.0 现状)**:① 执行路径补 M4 自动压缩链路;② 错误码补 613/614(design/25 已钉);③ 注入位决策的 Memory 无冲突判断经 M4 实证;⑥ 发布方式改纯 semver(描述后缀 tag 规范已废弃);⑦ 触发条件已满足,标注状态。原 §6 实施规模预估维持。
 
@@ -24,7 +24,7 @@ you> /skill json-report data.json
 
 1. **一个声明文件**(`skills/*.skill.json`):name + description + **指令模板**(自然语言,给模型的任务说明)+ 参数槽(`{arg}` 占位,用户经 /skill 参数替换)+ 可选 allowed-tools(约束本 skill 执行期间可用的工具);
 2. **一个壳命令**(`/skill`):无参列出可用 skill;`/skill name args...` 装载定义 → 渲染指令模板 → 作为**本轮 user 消息**发出 → Agent 正常 run;
-3. **与层 2 同一装载基建**:扫描/校验/注册骨架与 design/25 §4 的 DescriptorToolLoader 同源,仅 schema 不同(command 槽 → instruction 模板)。
+3. **与层 2 同一装载基建**:扫描/校验/注册骨架与 design/25 §4 的 DescriptorToolLoader 同源,仅 schema 不同(command 槽 → instruction 模板)——**design/25 §4.3 预留形状兑现**(`tools/*.tool.json` / `skills/*.skill.json` 目录约定即彼处保留的扩展位)。
 
 **Skill 不是**:
 
@@ -49,7 +49,7 @@ you> /skill json-report data.json
 
 校验规则(V 序列属壳层,编号 S1–S4 避免与场景 V 混淆;**错误码沿用 design/25 §6 已钉段——本设计不发明新码**):
 
-- **S1**:name 必填且匹配 `^[a-z][a-z0-9-]*$`;skill 名之间唯一(装载期冲突 → 提示文件名);**违例 → 613**(描述文件非法,消息含文件名);
+- **S1**:name 必填且匹配 `^[a-z][a-z0-9-]*$`(违例 → 613);skill 名之间唯一——**查重在 loadAll() 批量装载期**(单文件装载不查重,与 design/25 DescriptorToolLoader 同模式),冲突 → **613 提示两个文件名**;
 - **S2**:instruction 必填非空(**→ 613**);`{slot}` 占位必须在 arguments 中有定义(防模板漏参,**→ 613**);arguments 中未被模板引用的槽提示警告(不拒绝);
 - **S3**:arguments 槽 schema 与 design/25 §3 同构(type/description/required/default,不支持嵌套);**违例 → 613**;
 - **S4**:allowedTools 若存在,必须是数组(**形态违例 → 613**)且**装载期不校验工具名存在性**(工具可能后注册;执行期校验,未知工具名在渲染时忽略并提示);
@@ -77,7 +77,7 @@ you> /skill json-report data.json
 | `/skill name args...` | 装载 → S 校验 → 渲染(参数替换)→ 作为 user 消息发 Agent run(走既有 renderEvent 事件流) |
 | `/skill name --info` | 显示指令模板原文与参数槽(执行前预览) |
 
-装配:壳 bootstrap 时 `SkillLoader(skills/)`(与 tools/ 装载同基建)→ /skill 命令持有清单;skills/ 目录在壳根(design/21 §8 三区之外的第四区?**否**——skills/ 是**用户资产、随壳入库可分享**,放壳根且**不 gitignore**;与 .work(产出)/.runtime(草稿)生命周期不同)。
+装配:壳 bootstrap 时 `SkillLoader(skills/)`(与 tools/ 装载同基建)→ /skill 命令持有清单;skills/ 目录在壳根(design/21 §8 三区之外的第四区?**否**——skills/ 是**用户资产、随壳入库可分享**,放壳根且**不 gitignore**;与 .work(产出)/.runtime(草稿)生命周期不同)。**skills/ 不存在 = 零 skill,不自动创建**(与 tools/ 装载的自觉差异:tools/ 是草稿区构造期 mkdir,skills/ 是用户资产——空目录无意义,自动创建制造仓库噪音;全新壳 /skill 提示"no skills"即为正常态)。
 
 **执行路径(修订 ①,对齐 M4 后现状)**:/skill 渲染产出消息 → **`Application::runAgentTurn($message)`**(公开方法,命令可发起 agent 轮)→ **Compact::maybeAuto(每轮 run 前自动压缩,design/24 §7)**→ Agent run → renderEvent 事件流。即 **skill 消息天然过自动压缩**——指令模板过长时由 /compact 机制兜底(§3"上下文成本"行的预期成立,链路零特殊处理);自动压缩亦会消费 skill 前缀标记,模型可理解这是技能调用(风险②的对策在压缩路径同样生效)。
 
