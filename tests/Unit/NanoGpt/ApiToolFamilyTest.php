@@ -22,7 +22,14 @@ final class ApiToolFamilyTest extends TestCase
     protected function tearDown(): void
     {
         self::$sent = [];
+        foreach ($this->tempFiles as $f) {
+            @unlink($f);
+        }
+        $this->tempFiles = [];
     }
+
+    /** @var string[] */
+    private array $tempFiles = [];
 
     private function fakeHttp(int $code = 200, string $body = '{}'): Request
     {
@@ -187,5 +194,169 @@ final class ApiToolFamilyTest extends TestCase
         $result = $tool->execute(['url' => 'https://api.example.com/html', 'extract' => ['$.x']]);
 
         self::assertStringContainsString('not valid JSON', $result);
+    }
+
+    // ---------- ApiFetchTool 场景形态(design/27 O2) ----------
+
+    public function testScenarioModeRunsFileAndReturnsOutputs(): void
+    {
+        $file = $this->scenarioFile([
+            'id'        => 'get-weather',
+            'name'      => '取天气',
+            'outputs'   => ['city', 'temp'],
+            'variables' => [['name' => 'code', 'value' => '000']],
+            'steps'     => [[
+                'type'    => 'http',
+                'id'      => 's1',
+                'name'    => '查天气',
+                'url'     => 'https://api.example.com/weather?code=${code}',
+                'method'  => 'GET',
+                'extract' => [
+                    ['var' => 'city', 'source' => 'json', 'path' => '$.city'],
+                    ['var' => 'temp', 'source' => 'json', 'path' => '$.data.temp'],
+                ],
+            ]],
+        ]);
+        $tool = new ApiFetchTool(['api.example.com'], $this->fakeHttp(200, '{"city":"广州","data":{"temp":"26C"}}'));
+
+        $result = $tool->execute(['scenario' => $file]);
+
+        self::assertStringContainsString('status: ok', $result);
+        self::assertStringContainsString('"city":"广州"', $result);
+        self::assertStringContainsString('"temp":"26C"', $result);
+        self::assertStringContainsString('code=000', self::$sent[0]['url'], '变量初值进 URL(未覆盖)');
+    }
+
+    public function testScenarioModeVarsOverrideAndOutputsNarrowing(): void
+    {
+        $file = $this->scenarioFile([
+            'id'        => 'get-weather',
+            'name'      => '取天气',
+            'outputs'   => ['city', 'temp'],
+            'variables' => [['name' => 'code', 'value' => '000']],
+            'steps'     => [[
+                'type'    => 'http',
+                'id'      => 's1',
+                'name'    => '查天气',
+                'url'     => 'https://api.example.com/w?code=${code}',
+                'method'  => 'GET',
+                'extract' => [
+                    ['var' => 'city', 'source' => 'json', 'path' => '$.city'],
+                    ['var' => 'temp', 'source' => 'json', 'path' => '$.data.temp'],
+                ],
+            ]],
+        ]);
+        $tool = new ApiFetchTool(['api.example.com'], $this->fakeHttp(200, '{"city":"深圳","data":{"temp":"31C"}}'));
+
+        // vars 覆盖初值;outputs 收窄为子集(只 city)
+        $result = $tool->execute(['scenario' => $file, 'vars' => ['code' => '440300'], 'outputs' => ['city']]);
+
+        self::assertStringContainsString('status: ok', $result);
+        self::assertStringContainsString('"city":"深圳"', $result);
+        self::assertStringNotContainsString('temp', $result, 'outputs 收窄:未选键不返回');
+        self::assertStringContainsString('code=440300', self::$sent[0]['url'], 'vars 覆盖生效');
+    }
+
+    public function testScenarioModeRejectsUndeclaredOutputsNarrowing(): void
+    {
+        $file = $this->scenarioFile($this->weatherScenarioData());
+        $tool = new ApiFetchTool(['api.example.com'], $this->fakeHttp(200, '{"city":"x"}'));
+
+        $result = $tool->execute(['scenario' => $file, 'outputs' => ['nope']]);
+
+        self::assertStringContainsString('not declared by scenario', $result); // 只收窄,不扩充
+    }
+
+    public function testScenarioModeFailureReportsFailedSteps(): void
+    {
+        $file = $this->scenarioFile($this->weatherScenarioData());
+        $tool = new ApiFetchTool(['api.example.com'], $this->fakeHttp(500, '{"err":1}'));
+
+        $result = $tool->execute(['scenario' => $file]);
+
+        self::assertStringContainsString('status: failed', $result);
+        self::assertStringContainsString('"s1"', $result, 'failedSteps 含步骤 id(design/27 §5 回归点)');
+    }
+
+    public function testScenarioModeHostNotInWhitelistRejectedBeforeRun(): void
+    {
+        $file = $this->scenarioFile([
+            'id'      => 'evil',
+            'name'    => '外域',
+            'outputs' => ['x'],
+            'steps'   => [[
+                'type'   => 'http',
+                'id'     => 's1',
+                'name'   => '取数',
+                'url'    => 'https://evil.example.net/steal',
+                'method' => 'GET',
+                'extract' => [['var' => 'x', 'source' => 'json', 'path' => '$.x']],
+            ]],
+        ]);
+        $tool = new ApiFetchTool(['api.example.com'], $this->fakeHttp(200, '{"x":1}'));
+
+        $result = $tool->execute(['scenario' => $file]);
+
+        self::assertStringContainsString('host not allowed', $result);
+        self::assertSame([], self::$sent, '白名单前置:执行前拒绝,不发请求');
+    }
+
+    public function testScenarioModeScenarioWithoutOutputsRejected(): void
+    {
+        $data = $this->weatherScenarioData();
+        unset($data['outputs']);
+        $file = $this->scenarioFile($data);
+        $tool = new ApiFetchTool(['api.example.com'], $this->fakeHttp(200, '{"city":"x"}'));
+
+        $result = $tool->execute(['scenario' => $file]);
+
+        self::assertStringContainsString('declares no outputs', $result);
+    }
+
+    public function testScenarioModeMissingFileReportsError(): void
+    {
+        $tool = new ApiFetchTool(['api.example.com'], $this->fakeHttp());
+
+        $result = $tool->execute(['scenario' => '/nonexistent/scenario.json']);
+
+        self::assertStringContainsString('scenario parse failed', $result);
+    }
+
+    // ---------- 工具 ----------
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function scenarioFile(array $data): string
+    {
+        $file = tempnam(sys_get_temp_dir(), 'wss') . '.json';
+        file_put_contents($file, (string) json_encode($data, JSON_UNESCAPED_UNICODE));
+        $this->tempFiles[] = $file;
+
+        return $file;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function weatherScenarioData(): array
+    {
+        return [
+            'id'        => 'get-weather',
+            'name'      => '取天气',
+            'outputs'   => ['city', 'temp'],
+            'variables' => [['name' => 'code', 'value' => '000']],
+            'steps'     => [[
+                'type'    => 'http',
+                'id'      => 's1',
+                'name'    => '查天气',
+                'url'     => 'https://api.example.com/w?code=${code}',
+                'method'  => 'GET',
+                'extract' => [
+                    ['var' => 'city', 'source' => 'json', 'path' => '$.city'],
+                    ['var' => 'temp', 'source' => 'json', 'path' => '$.data.temp'],
+                ],
+            ]],
+        ];
     }
 }
