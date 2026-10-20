@@ -1,17 +1,18 @@
 ws-http
 ========
 
-#### 简单轻量的 cURL HTTP 客户端工具库,附带 API 断言器与场景化自动化测试引擎(A Simplified, lightweight HTTP client library with an assertion layer and a scenario-based API testing engine)
+#### 简单轻量的 cURL HTTP 客户端工具库,附带 API 断言器、场景化自动化测试引擎与多厂商 agent 编排层(A Simplified, lightweight HTTP client library with an assertion layer, a scenario-based API testing engine, and multi-provider agent orchestration)
 
 PHP 7.4+ · 零外部依赖(仅 ext-curl / ext-json)· MIT
 
-## 三层能力(按需取用)
+## 四层能力(按需取用)
 
 | 层 | 你能得到 | 一行入口 |
 | --- | --- | --- |
 | **core** | 一个 cURL HTTP API 工具:SSL / Basic·Digest 认证 / 代理 / Cookie / 自定义头 / JSON·表单·Multipart 体 | `(new Request())->get($url)` |
 | **functional** | 断言器(Watcher)、JSONPath 表达式、场景自动化引擎(变量/提取/断言/报告/CLI) | `Watcher::create($response)->assertStatusCode(200)` |
 | **plugin** | 三方系统适配(OpenAI 兼容协议、WordPress),注册机制可扩展 | `(new OpenAI\Client($key))->chat()->create('hi')` |
+| **NanoGpt** | 多厂商 agent 编排层:agent loop + 工具协议 + 沙箱 + 会话/压缩/记忆,经 ChatTransportInterface 接任意厂商 | `new Agent(new DeepSeekTransport([...]), 'model')` |
 
 > 设计原则:"Simple things should be simple, complex things should be possible." 简单路径永远一行;高级能力(自定义操作符、扩展 source、plugin 注册)只在用到时才出现。
 
@@ -65,6 +66,7 @@ Watcher::create($response)
 ```jsonc
 {
   "id": "smoke", "name": "冒烟测试",
+  "outputs": ["token"],                            // 可选:声明后场景即"取数函数",运行完提取结果集
   "variables": [ { "name": "password", "value": "secret", "secret": true } ],
   "steps": [
     { "type": "http", "id": "login", "name": "登录", "url": "https://api.example.com/login",
@@ -83,7 +85,7 @@ php bin/ws-http run a.json b.json --format=json   # JSON 报告供 CI
 php bin/ws-http run scenario.json --var env=prod  # 外部注入变量
 ```
 
-场景 Schema 全貌(提取 source、断言操作符、auth/proxy、延时步骤)见 [design/14](design/14-场景脚本Schema%20v2.md);编程式调用见 [examples/scenario](examples/scenario/run.php)。
+场景 Schema 全貌(提取 source、断言操作符、auth/proxy、延时步骤)见 [design/14](design/14-场景脚本Schema%20v2.md);场景作为取数函数(outputs 声明 → 结果集提取)见 [design/27](design/27-场景输出契约设计.md);编程式调用见 [examples/scenario](examples/scenario/run.php)。
 
 ### plugin:三方系统接入
 
@@ -102,9 +104,23 @@ $wp->posts()->create('标题', '正文');
 
 完整可运行示例(含多轮对话/用量提取/错误形态)见 [examples/openai-chat](examples/openai-chat/run.php)。
 
-### NanoGpt:OpenAI 协议 agent 编排层(`Ws\Http\NanoGpt`)
+### NanoGpt:多厂商 agent 编排层(`Ws\Http\NanoGpt`)
 
-agent loop(事件流 Generator)+ 工具协议(ToolInterface/ToolRegistry)+ Sandbox 沙箱 + 会话管理(截断/快照/持久化/预算压缩/长期记忆)。首个消费壳 [examples/cc-gpt](examples/cc-gpt/README.md):agent CLI(/init /model /compact /rewind /clear /resume /memory,自动压缩,多服务模型适配)。设计见 [design/21](design/21-NanoGpt设计.md) 与 [design/24](design/24-会话与记忆设计.md)。
+agent loop(事件流 Generator)+ 工具协议(ToolInterface/ToolRegistry)+ Sandbox 沙箱 + 会话管理(截断/快照/持久化/预算压缩/长期记忆)。编排与传输分离:**编排层不绑定任何厂商**,传输经 `ChatTransportInterface` 可替换——接入新厂商 = 换一个 Transport 类:
+
+```php
+use Ws\Http\NanoGpt\Agent;
+use Ws\Http\NanoGpt\Transport\DeepSeekTransport;   // 内建 7 厂商类 + Generic 逃生门
+
+$agent = new Agent(new DeepSeekTransport(['api_key' => $apiKey]), 'deepseek-chat');
+$agent->tools()->register(new \Ws\Http\NanoGpt\Tool\ReadFileTool($sandbox));
+
+foreach ($agent->run('帮我读一下 README.md 并总结') as $event) {
+    // text | tool_call | tool_result | error(传输失败带 620–624 语义分类码)
+}
+```
+
+首个消费壳 [examples/cc-gpt](examples/cc-gpt/README.md):agent CLI(/init /model /compact /rewind /clear /resume /memory,自动压缩,适配器菜单选服务)。设计见 [design/21](design/21-NanoGpt设计.md) / [design/24](design/24-会话与记忆设计.md) / [design/28](design/28-厂商接入层设计.md)。
 
 ## 扩展机制(Extension / Plugin)
 
@@ -127,7 +143,7 @@ php74 vendor/bin/phpunit --testsuite Integration  # 公网 httpbin(可 skip)
 php74 bin/ws-http run tests/fixtures/scenarios/booking-flow.json --format=text  # 冒烟
 ```
 
-设计文档:`design/README.md` 是索引(现状分析 01–03 / 目标架构 10–17 / 实施计划 20)。
+设计文档:`design/README.md` 是索引(现状分析 01–03 / 目标架构 10–17 / 组件与专项 20–28);**各设计的落地状态/收口 tag/悬置工作一页表见 [design/PROGRESS.md](design/PROGRESS.md)**。
 
 ## 2.0 迁移差异(自 1.x)
 

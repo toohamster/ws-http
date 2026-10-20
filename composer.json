@@ -1,7 +1,7 @@
 {
     "name": "toohamster/ws-http",
-    "description": "ws-http: Simplified, lightweight HTTP client library with assertion and scenario-based API testing engine",
-    "keywords": ["http", "ws-http", "curl", "api-testing", "assertion"],
+    "description": "ws-http: Simplified, lightweight HTTP client library with assertion and scenario-based API testing engine, multi-provider agent orchestration (NanoGpt) and scenario-as-data-function outputs",
+    "keywords": ["http", "ws-http", "curl", "api-testing", "assertion", "llm", "ai-agent", "openai", "chatgpt", "tool-use"],
     "license": "MIT",
     "homepage": "https://github.com/toohamster/ws-http",
     "support": {
