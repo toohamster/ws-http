@@ -44,6 +44,14 @@
 - 重大变更:v2.0.2 → v3.0.0(MAJOR)
 - 纯 semver,描述后缀禁用;预发布用标准词(-beta.1/-rc.1)
 
+## 已发布标签不可移动(铁律,2026-10-21 Packagist 告警教训)
+
+**已 push 的 tag = 对外承诺,永远不移动**(不 force push tag、不删重打):
+- Packagist 对 stable 版本**不可变**:tag 指向的 commit 一旦被抓取即固化;移动已发布 tag → Packagist 阻断更新并告警("source/dist reference changed"),下游用户对同一版本号拿到不同内容 = 破坏 semver 根本承诺;
+- **tag 后发现的任何遗漏(CHANGELOG 补段/docs 修正/代码修复),一律进位新版本**(纯 docs 补段 → PATCH 进位),新 tag + push,旧 tag 永不回头;
+- 打 tag 前的最后自检:确认 CHANGELOG/README/docs 全部就位**之后**才打 tag——tag 是流程的最后一步,不是中间步骤;
+- 若已发生移动:恢复 tag 到原 commit(`git tag -f <tag> <原commit>` + force push tag)+ 变更内容进位新版本重新发布。
+
 ## 默认行为
 
 - 默认**保留远程功能分支**,除非用户明确说"删除远程分支";
