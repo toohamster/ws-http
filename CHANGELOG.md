@@ -2,6 +2,12 @@
 
 所有显著变更记录于此。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [2.7.1] - 2026-10-21
+
+### Changed
+- 发布工程:release-workflow 新增铁律——已发布标签不可移动(不 force push tag/不删重打;tag 后发现的遗漏一律进位新版本;打 tag 是流程最后一步)。来源:v2.7.0 tag 移位触发 Packagist stable 不可变告警,tag 已恢复原 commit `660edf2`
+- README/composer 定位描述对齐 v2.7.0(能力表四层/Transport 示例/outputs 取数形态/keywords 补检索词);design/26 Skill 修订(对齐 v2.7.0 现状 + review P1–P4,实现已确认启动);design/PROGRESS.md 台账与悬置清单落档
+
 ## [2.7.0] - 2026-10-20
 
 ### Added
