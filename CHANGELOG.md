@@ -2,6 +2,12 @@
 
 所有显著变更记录于此。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [2.8.1] - 2026-10-22
+
+### Changed
+- Skill 归位调整(design/26 层归属修订):`SkillDefinition`/`SkillLoader` 迁移 `CcGpt\` → `Ws\Http\NanoGpt\`(纯数据+纯函数零 I/O,与 DescriptorToolLoader 同层同源,任何壳/编程使用者可复用);`Command\Skill` 留壳(REPL 交互+runAgentTurn)。**迁移性**:v2.8.0 使用者若直接引用 `CcGpt\SkillDefinition/SkillLoader` 需改 use——两日龄接口,影响面极小
+- PHPStan 修一(preg_match_all 已知形态冗余 coalesce)
+
 ## [2.8.0] - 2026-10-22
 
 ### Added
