@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace CcGpt;
+namespace Ws\Http\NanoGpt;
 
 use Ws\Http\NanoGpt\AgentException;
 
@@ -89,7 +89,7 @@ final class SkillDefinition
 
         // S2:{slot} 占位必须有定义;未引用的槽 → 警告(不拒绝)
         preg_match_all('/\{(\w+)\}/', $instruction, $m);
-        $referenced = $m[1] ?? [];
+        $referenced = $m[1];
         foreach (array_unique($referenced) as $slot) {
             if (!isset($arguments[$slot])) {
                 throw new AgentException(

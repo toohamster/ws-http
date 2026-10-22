@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Ws\Http\Tests\Unit\Ccgpt;
+namespace Ws\Http\Tests\Unit\NanoGpt;
 
-use CcGpt\SkillDefinition;
-use CcGpt\SkillLoader;
 use PHPUnit\Framework\TestCase;
 use Ws\Http\NanoGpt\AgentException;
+use Ws\Http\NanoGpt\SkillDefinition;
+use Ws\Http\NanoGpt\SkillLoader;
 
 /**
  * design/26:Skill 装载(SkillLoader,与 design/25 §4 同源)+ 定义校验(S1–S4)+ 渲染。

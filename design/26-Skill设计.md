@@ -1,6 +1,6 @@
 # 26 Skill(可分享的任务级能力包:声明式定义 → /skill 命令装配)
 
-> 层归属:**壳段(`CcGpt\`)为主,装载基建与 design/25 §4 同源**(组件段的 Loader 扩展一种 schema)。
+> 层归属:**定义与装载归组件,命令归壳(2026-10-22 修订,对齐层 2 归位一致性)**——`SkillDefinition`/`SkillLoader` 在 `Ws\Http\NanoGpt\`(纯数据 + 纯函数,零 I/O,与 DescriptorToolLoader 同层同源,任何壳/编程使用者可复用);`Command\Skill` 在 `CcGpt\Command\`(REPL 交互 + runAgentTurn 调用,壳物)。
 > 状态:**前置已满足,已确认实现(2026-10-20;发布随下次 MINOR)**。
 > 背景:工具三层分类评审(2026-09-21)——层 1 代码 CommandTool(design/25 实现)/ 层 2 声明式描述文件(design/25 实现)/ **层 3 Skill(本设计)**。层 3 与层 2 的差异:粒度从"单命令"升到"任务级能力包"(指令模板 + 多工具编排),交互形态为 `/skill name args`。
 > **修订(2026-10-20,对齐 v2.7.0 现状)**:① 执行路径补 M4 自动压缩链路;② 错误码补 613/614(design/25 已钉);③ 注入位决策的 Memory 无冲突判断经 M4 实证;⑥ 发布方式改纯 semver(描述后缀 tag 规范已废弃);⑦ 触发条件已满足,标注状态。原 §6 实施规模预估维持。
@@ -69,7 +69,7 @@ you> /skill json-report data.json
 - allowedTools 的执行期约束实现:**渲染进指令文本**("本次任务只允许使用:...")——不做运行期工具注册表裁剪(那是 Agent 状态变更,越界);约束是提示性的,与"结构安全靠 CommandTool 骨架"分层一致:危险操作本就被工具层挡住,allowedTools 只是任务聚焦;
 - **Memory 无冲突(M4 实证,2026-10-20)**:M4 落地后 Memory 经 `applyMemoryToSystem` 确实占 system 注入位——本节当初"user 消息注入不与 Memory 抢 system"的判断由推测变为验证成立,选型维持。
 
-## 4. 壳层:/skill 命令(CcGpt\Command\Skill)
+## 4. 壳层:/skill 命令(CcGpt\Command\Skill;定义与装载在组件,见行头归属修订)
 
 | 调用 | 行为 |
 | --- | --- |

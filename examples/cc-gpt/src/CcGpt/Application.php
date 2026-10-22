@@ -96,7 +96,7 @@ final class Application
             new Command\Clear($this->context->sessionStore),
             new Command\Resume($this->context->sessionStore),
             new Command\Memory(),
-            new Command\Skill(new SkillLoader($this->repoRoot . '/skills')),
+            new Command\Skill(new \Ws\Http\NanoGpt\SkillLoader($this->repoRoot . '/skills')),
         ];
     }
 

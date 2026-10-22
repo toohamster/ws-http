@@ -6,7 +6,7 @@ namespace CcGpt\Command;
 
 use CcGpt\CommandInterface;
 use CcGpt\Context;
-use CcGpt\SkillLoader;
+use Ws\Http\NanoGpt\SkillLoader;
 
 /**
  * /skill(design/26 §4):任务级能力包——声明式指令模板渲染为本轮 user 消息。

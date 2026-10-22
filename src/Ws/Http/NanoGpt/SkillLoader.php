@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace CcGpt;
+namespace Ws\Http\NanoGpt;
 
 use Ws\Http\NanoGpt\AgentException;
 

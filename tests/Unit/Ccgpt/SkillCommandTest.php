@@ -5,11 +5,10 @@ declare(strict_types=1);
 namespace Ws\Http\Tests\Unit\Ccgpt;
 
 use CcGpt\Application;
-use CcGpt\SkillDefinition;
-use CcGpt\SkillLoader;
 use CcGpt\Ui\Input;
 use CcGpt\Ui\Output;
 use PHPUnit\Framework\TestCase;
+use Ws\Http\NanoGpt\SkillLoader;
 use Ws\Http\Tests\Fake\FakeChatTransport;
 use Ws\Http\NanoGpt\Agent;
 use Ws\Http\NanoGpt\ChatResult;
