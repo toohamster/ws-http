@@ -2,6 +2,12 @@
 
 所有显著变更记录于此。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [2.8.0] - 2026-10-22
+
+### Added
+- Skill 任务级能力包(design/26):`skills/*.skill.json` 声明式定义(name + 指令模板 + 参数槽 + 可选 allowedTools)——`/skill` 命令三形态(无参列表 / 渲染执行 / `--info` 预览);校验 S1–S4(装载违例 613,required 缺参 614 拦在渲染不发请求);注入位 = user 消息(随会话历史自然留存,持久化/压缩/rewind 零特殊处理,天然过自动压缩);SkillLoader 与 design/25 §4 同源(单文件非法跳过 + sidecar 日志,跨文件重名 613);allowedTools 约束渲染进指令文本(提示性,安全兜底在工具层);内建示例 skills/json-report.skill.json
+- cc-gpt 装配:`/skill` 命令注册;`Application::runAgentTurn` 公开化(命令可发起 agent 轮);skills/ 为用户资产随壳入库(目录不存在 = 零 skill,不自动创建)
+
 ## [2.7.1] - 2026-10-21
 
 ### Changed
