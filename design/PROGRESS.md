@@ -28,7 +28,7 @@
 | 23 数据驱动测试设计 | Automated\Dataset 子模块、BatchReport | 已实施 | D1(单步) | 2026-09-18 | v2.2.0-dataset |
 | 24 会话与记忆设计 | Conversation 演进/持久化/预算压缩/Memory | 已实施 | M1–M5 | 2026-10-08 | v2.5.0 |
 | 25 工具谱系与声明式工具 | 分类轴/CommandExecKernel/声明式装载/网络工具 | 已实施 | C1–C5b | 2026-09-21 | v2.3.3 → v2.3.4-command-spectrum |
-| 26 Skill 设计 | 任务级能力包(/skill) | 已实施 | 单提交(SkillDefinition/SkillLoader//skill 命令 + 示例 json-report) | 2026-10-22 | 待下次 MINOR |
+| 26 Skill 设计 | 任务级能力包(/skill) | 已实施 | 单提交(SkillDefinition/SkillLoader//skill 命令 + 示例 json-report) | 2026-10-22 | v2.8.0 |
 | 27 场景输出契约设计 | outputs 白名单(V19)+ ScenarioOutput 出口 | 已实施 | O1–O2(V19/出口 + ApiFetchTool 场景形态,两形态并存) | 2026-10-19 | v2.7.0 |
 | 28 厂商接入层设计 | ChatTransportInterface/重试/错误分类/双层厂商 | 已实施 | D1–D4 | 2026-10-16 | v2.6.0 |
 
@@ -47,3 +47,5 @@
 - **2026-10-08** v2.5.0:design/24 会话与记忆(M1–M5)
 - **2026-10-16** v2.6.0:design/28 厂商接入层(D1–D4)
 - **2026-10-20** v2.7.0:design/27 场景输出契约(O1–O2)+ PROGRESS 台账
+- **2026-10-21** v2.7.1:发布工程修正(标签不可移动铁律 + docs 归档)
+- **2026-10-22** v2.8.0:design/26 Skill 任务级能力包
