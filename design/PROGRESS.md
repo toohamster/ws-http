@@ -28,15 +28,14 @@
 | 23 数据驱动测试设计 | Automated\Dataset 子模块、BatchReport | 已实施 | D1(单步) | 2026-09-18 | v2.2.0-dataset |
 | 24 会话与记忆设计 | Conversation 演进/持久化/预算压缩/Memory | 已实施 | M1–M5 | 2026-10-08 | v2.5.0 |
 | 25 工具谱系与声明式工具 | 分类轴/CommandExecKernel/声明式装载/网络工具 | 已实施 | C1–C5b | 2026-09-21 | v2.3.3 → v2.3.4-command-spectrum |
-| 26 Skill 设计 | 任务级能力包(/skill) | **仅设计** | 无(依赖 design/25 层 2——已就绪,可启动) | 2026-09-21(设计) | — |
+| 26 Skill 设计 | 任务级能力包(/skill) | 已实施 | 单提交(SkillDefinition/SkillLoader//skill 命令 + 示例 json-report) | 2026-10-22 | 待下次 MINOR |
 | 27 场景输出契约设计 | outputs 白名单(V19)+ ScenarioOutput 出口 | 已实施 | O1–O2(V19/出口 + ApiFetchTool 场景形态,两形态并存) | 2026-10-19 | v2.7.0 |
 | 28 厂商接入层设计 | ChatTransportInterface/重试/错误分类/双层厂商 | 已实施 | D1–D4 | 2026-10-16 | v2.6.0 |
 
 ## 悬置工作(按依赖排序)
 
-1. **design/26 Skill**(/skill 命令):前置 design/25 层 2 已落地,接口形状 §4.3 已预留;待用户确认实现;
-2. **历史标签清理**:7 个带描述后缀标签(v2.1.0-pause 等)违反纯 semver 规范——涉及删远程标签(不可逆),待用户明确指令;
-3. **/model 对账三态**(design/24 §6.1 级联的对账形态):讨论过未排期。
+1. **历史标签清理**:7 个带描述后缀标签(v2.1.0-pause 等)违反纯 semver 规范——涉及删远程标签(不可逆),待用户明确指令;
+2. **/model 对账三态**(design/24 §6.1 级联的对账形态):讨论过未排期。
 
 ## 版本时间线(发布视角,详录见 CHANGELOG)
 
