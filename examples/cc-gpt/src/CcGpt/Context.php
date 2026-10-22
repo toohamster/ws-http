@@ -60,6 +60,9 @@ final class Context
     /** @var int|null 当前会话最近一次落盘后追加的消息序号(未保存提示用) */
     public $unsavedSince;
 
+    /** @var \CcGpt\Application|null Application 回填(/skill 发起 agent 轮,design/26 §4) */
+    public $application;
+
     /**
      * 把 Memory 的 systemPromptBlock 注入 Conversation(基线 system 之后拼记忆块)。
      */

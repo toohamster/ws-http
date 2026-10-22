@@ -60,6 +60,7 @@ final class Application
         $this->context->sessionStore = new \Ws\Http\NanoGpt\FileConversationStore($repoRoot . '/.runtime/sessions');
         $this->context->memory = new \Ws\Http\NanoGpt\Memory($workOverride ?? $repoRoot . '/.work' . '/memory.json');
         $this->context->compactAuto = $settings->get('compactAuto') === null || (bool) $settings->get('compactAuto');
+        $this->context->application = $this; // /skill 发起 agent 轮(design/26 §4)
         $this->commands = new CommandRegistry();
         foreach ($this->defaultCommands() as $command) {
             $this->commands->register($command);
@@ -95,6 +96,7 @@ final class Application
             new Command\Clear($this->context->sessionStore),
             new Command\Resume($this->context->sessionStore),
             new Command\Memory(),
+            new Command\Skill(new SkillLoader($this->repoRoot . '/skills')),
         ];
     }
 
@@ -294,7 +296,7 @@ final class Application
         return new \Ws\Http\NanoGpt\ContextBudget($window);
     }
 
-    private function runAgentTurn(string $input): void
+    public function runAgentTurn(string $input): void
     {
         if ($this->context->agent === null) {
             $this->output->writeln('agent not configured — run /init <key> first', 'yellow');

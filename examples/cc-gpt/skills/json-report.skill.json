@@ -1,0 +1,9 @@
+{
+  "name": "json-report",
+  "description": "Analyze a JSON file and produce a structured report",
+  "instruction": "分析 {path} 这个 JSON 文件:先用 read_file 读取,统计顶层键结构与记录数,然后输出一份包含字段类型分布、空值率、样本值(截断 200 字符)的报告。不要修改任何文件。",
+  "arguments": {
+    "path": { "type": "string", "description": "JSON file path within sandbox", "required": true }
+  },
+  "allowedTools": ["read_file", "list_dir"]
+}
