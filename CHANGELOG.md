@@ -2,6 +2,14 @@
 
 所有显著变更记录于此。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [2.9.0] - 2026-10-23
+
+### Added
+- `/model` 切换对账(design/24 §6.1 收口):切换模型后 Budget 重建(窗口 = 新模型能力档案)→ 当前上下文三态——正常(usage 确认)/ ≥80% 警告 / 超预算菜单 `[c]ompact`(复用 Compact::run,失败 612 提示)`[r]ewind`(复用检查点截断)`[k]eep`(风险自担);`Application::buildBudget` 公开化(命令可复用)
+
+### Fixed
+- `/model` 窗口探测路径修复:probe 依赖从已删除的 `probeClient` 切到 `transport`(D3 装配遗留,探测此前不可达)
+
 ## [2.8.1] - 2026-10-22
 
 ### Changed
