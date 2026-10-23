@@ -8,10 +8,11 @@ use CcGpt\CommandInterface;
 use CcGpt\Context;
 
 /**
- * /model:模型目录选择(design/21 §8.2 ModelInfo 属性模型)。
+ * /model:模型目录选择 + 切换对账(design/21 §8.2 + design/24 §6.1)。
  *
  * 有 ModelSource → 列表(id/name/窗口列;窗口 null 显示 "-")+ 序号/名字切换;
  * 选择后窗口未知 → 探测提示词作为默认值,用户 [录入/自设/跳过](§8.2 级联);
+ * 切换后执行 §6.1 对账(写入档案 → 重建 Budget → 三态:正常/警告/超限菜单 c/r/k);
  * 无 → 提示手动 /model <id> 或 /init。
  */
 final class Model implements CommandInterface
@@ -45,6 +46,8 @@ final class Model implements CommandInterface
                 $selected = $models[$index];
                 $target = $selected->id();
             }
+
+            $previousModel = $context->model;
             $context->model = $target;
             $out->writeln('model → ' . $target, 'green');
 
@@ -52,6 +55,9 @@ final class Model implements CommandInterface
             if ($selected !== null && $selected->contextWindow() === null) {
                 $this->probeContextWindow($selected->id(), $context);
             }
+
+            // §6.1 切换对账(design/24):重建 Budget → 三态
+            $this->reconcile($previousModel, $context);
 
             return true;
         }
@@ -99,6 +105,99 @@ final class Model implements CommandInterface
     }
 
     /**
+     * §6.1 切换对账(design/24):重建 Budget(新模型档案)→ 当前 messages 估算 → 三态:
+     *   a) 未超 80% → 一行确认(window + usage %);
+     *   b) ≥ 80% 未超窗 → 警告(不强制);
+     *   c) 超 100%(预算口径)→ 菜单 [c]ompact / [r]ewind / [k]eep。
+     * 无 agent(纯列表浏览切换)或无窗口档案 → 跳过对账(切回 Budget 由 buildBudget 档案驱动)。
+     */
+    private function reconcile(string $previousModel, Context $context): void
+    {
+        $out = $context->output;
+        if ($context->agent === null || $context->application === null) {
+            return;
+        }
+
+        // Budget 重建(窗口 = 新模型档案;Application::buildBudget 为 M4 既有逻辑,公开复用)
+        $context->budget = $context->application->buildBudget($context->model);
+        if ($context->budget === null) {
+            return; // 无窗口档案且无兜底(buildBudget 恒返回,防御)
+        }
+
+        $messages = $context->agent->conversation()->messages();
+        $estimated = $context->budget->estimateTokens($messages);
+        $ratio = $context->budget->usageRatio($messages);
+        $window = $this->currentWindow($context);
+        $usage = sprintf('~%.0f%%', $ratio * 100);
+
+        // 三态判定(design/24 §6.1)
+        if ($ratio < 0.8) {
+            // a) 正常
+            $out->writeln(sprintf('switched to %s (window %s, context usage %s)', $context->model, $window, $usage), 'gray');
+
+            return;
+        }
+
+        $overBudget = $context->budget->needsCompact($messages); // 预算口径(扣输出预留)超限
+        if (!$overBudget) {
+            // b) ≥80% 未超预算 → 警告不强制
+            $out->writeln(sprintf('warning: usage %s of window %s — consider /compact', $usage, $window), 'yellow');
+
+            return;
+        }
+
+        // c) 超预算 → 对账菜单 c/r/k
+        $out->writeln(sprintf('context usage %s exceeds budget for %s (window %s, est. %d tokens)', $usage, $context->model, $window, $estimated), 'yellow');
+        $this->overBudgetMenu($context);
+    }
+
+    /**
+     * 超限菜单(design/24 §6.1 c 态):[c]ompact / [r]ewind / [k]eep。
+     */
+    private function overBudgetMenu(Context $context): void
+    {
+        $out = $context->output;
+        $out->writeln('  [c]ompact  auto-compact (keep 2 turns)' . ($context->compactAuto ? '  ← recommended' : ''), 'gray');
+        $out->writeln('  [r]ewind   back to an earlier checkpoint', 'gray');
+        $out->writeln('  [k]eep     keep as-is (next request may be rejected by the server)', 'gray');
+
+        $line = $context->input->readLine('choice [c/r/k]: ');
+        $answer = $line === null ? 'k' : strtolower(trim((string) $line));
+        $choice = $answer === '' ? 'k' : $answer[0];
+
+        switch ($choice) {
+            case 'c':
+                $compactor = new \Ws\Http\NanoGpt\LlmCompactor(
+                    $context->transport ?? new \Ws\Http\NanoGpt\Transport\GenericOpenAiTransport(['api_key' => 'unset']),
+                    $context->model !== '' ? $context->model : 'gpt-4o-mini'
+                );
+                $done = (new Compact($compactor, $context->sessionStore))->run($context, 2, true);
+                if (!$done) {
+                    $out->writeln('nothing to compact — keeping', 'yellow');
+                }
+                break;
+            case 'r':
+                (new Rewind())->execute([], $context);
+                break;
+            default:
+                $out->writeln('kept — next request may fail if context exceeds the new model window', 'yellow');
+        }
+    }
+
+    /**
+     * 当前窗口值(Budget 内部私有;对账展示用,与 buildBudget 同源档案读取)。
+     */
+    private function currentWindow(Context $context): string
+    {
+        $profiles = $context->settings->get('modelProfiles');
+        $window = \is_array($profiles) && isset($profiles[$context->model]['contextWindow']) && \is_int($profiles[$context->model]['contextWindow'])
+            ? $profiles[$context->model]['contextWindow']
+            : (int) $context->settings->get('contextWindow', 128000);
+
+        return $window >= 1000 ? sprintf('%dk', (int) round($window / 1000)) : (string) $window;
+    }
+
+    /**
      * 探测提示词(§8.2 级联层 2):模型自述上下文参数 → 默认值 → 用户 [录入/自设/跳过]。
      */
     private function probeContextWindow(string $modelId, Context $context): void
@@ -112,7 +211,12 @@ final class Model implements CommandInterface
 
         $out->writeln('probing context window (model self-report, may be inaccurate)…', 'gray');
         try {
-            $probe = new \CcGpt\ContextWindowProbe($context->probeClient);
+            if ($context->transport === null) {
+                $out->writeln('context window unknown — set manually in settings (contextWindow)', 'yellow');
+
+                return;
+            }
+            $probe = new \CcGpt\ContextWindowProbe($context->transport);
             $estimate = $probe->probe($modelId);
         } catch (\Throwable $e) {
             $out->writeln('probe failed: ' . $e->getMessage() . ' — set manually (contextWindow)', 'yellow');

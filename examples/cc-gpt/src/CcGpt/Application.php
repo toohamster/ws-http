@@ -285,8 +285,9 @@ final class Application
     /**
      * 窗口预算构建(M4):窗口 = settings.modelProfiles[<model>].contextWindow
      * (§8.2 级联落点)→ settings.contextWindow 兜底 → 默认 128000。
+     * /model 切换对账复用(design/24 §6.1,公开)。
      */
-    private function buildBudget(string $model): \Ws\Http\NanoGpt\ContextBudget
+    public function buildBudget(string $model): \Ws\Http\NanoGpt\ContextBudget
     {
         $profiles = $this->context->settings->get('modelProfiles');
         $window = \is_array($profiles) && isset($profiles[$model]['contextWindow']) && \is_int($profiles[$model]['contextWindow'])

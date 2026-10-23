@@ -42,6 +42,10 @@ final class FakeChatTransport implements ChatTransportInterface
             throw $this->exception;
         }
 
+        if ($this->results === []) {
+            throw new \Ws\Http\NanoGpt\AgentException('FakeChatTransport: no queued results', 624);
+        }
+
         return $this->results[min(count($this->calls) - 1, count($this->results) - 1)];
     }
 
