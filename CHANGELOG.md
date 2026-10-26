@@ -2,6 +2,11 @@
 
 所有显著变更记录于此。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [2.9.1] - 2026-10-26
+
+### Changed
+- 文档/记忆归档:历史描述后缀标签(v2.1.0-pause 等 7 个)决议**保留不清理**——教训标本(标签规范反面案例锚点),删除不可逆且断裂引用;design/PROGRESS.md 决议存档 + 悬置清单清空;instruction-discipline.md 悬置台账归档(全部主线工作收口)
+
 ## [2.9.0] - 2026-10-23
 
 ### Added
