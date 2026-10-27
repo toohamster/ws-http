@@ -94,6 +94,11 @@ final class Runner
             (microtime(true) - $startedAt) * 1000
         );
 
+        // file: 模式场景结束落盘(design/16 §7;persist 抛 4xx = 运行环境错误,向上传播)
+        if ($cookies instanceof FileCookieStore) {
+            $cookies->persist();
+        }
+
         return $report;
     }
 
@@ -452,7 +457,12 @@ final class Runner
             };
         }
 
-        return new MemoryCookieStore(); // memory(默认);file:<path> 形态延后
+        // file:<path>(design/16 §7):构造时加载,Netscape 格式;落盘在 run() 结束时
+        if (strpos($setting, 'file:') === 0) {
+            return new FileCookieStore(substr($setting, 5));
+        }
+
+        return new MemoryCookieStore(); // memory(默认)
     }
 
     private function lastFailedId(Report $report): string
