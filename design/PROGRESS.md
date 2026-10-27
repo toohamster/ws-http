@@ -20,7 +20,7 @@
 | 13 表达式引擎设计 | JSONPath 子集 EBNF、宽容求值 | 已实施 | S3 | 2026-09-16 | v2.0.0-beta.1 |
 | 14 场景脚本 Schema v2 | 字段契约、校验 V1–V10 | 已实施 | S7 | 2026-09-16 | v2.0.0-beta.1 |
 | 15 变量系统设计 | VariableScope、${var} 深替换 | 已实施 | S5 | 2026-09-16 | v2.0.0-beta.1 |
-| 16 执行器设计 | Runner 状态机、Report 契约、CLI | 已实施 | S7–S9 | 2026-09-16 | v2.0.0-beta.1 |
+| 16 执行器设计 | Runner 状态机、Report 契约、CLI | 已实施 | S7–S9;补缺:CookieStore file 模式(2026-10-27,契约表标注) | 2026-09-16 | v2.0.0-beta.1 |
 | 17 Plugin 层设计 | PluginInterface/Registry、OpenAI 内建样例 | 已实施 | S10 | 2026-09-16 | v2.0.0-beta.1 |
 | 20 实施方案步骤 | S1–S11 执行计划 | 计划(S1–S11 全部完成) | 自身即计划 | 2026-09-16 | v2.0.0-beta.1 |
 | 21 NanoGpt 设计 | agent loop/工具协议/沙箱/会话 + 壳 | 已实施 | N1–N4(§1 经 design/28 修订) | 2026-10-08 | v2.3.0 → v2.4.0(N4 冒烟 3/3) |
