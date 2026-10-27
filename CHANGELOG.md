@@ -2,6 +2,11 @@
 
 所有显著变更记录于此。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [2.10.0] - 2026-10-27
+
+### Added
+- CookieStore `file:<path>` 模式(design/16 §7 契约兑现,补缺):`FileCookieStore`——memory jar 语义(主机精确匹配/过期剔除/会话 cookie)+ Netscape cookie 文件格式持久化(场景开始加载、结束落盘);损坏行容忍;写入失败 403;`Runner::run` 结束自动 persist
+
 ## [2.9.1] - 2026-10-26
 
 ### Changed
