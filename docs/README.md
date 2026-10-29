@@ -24,6 +24,7 @@ Each page is an `[English]` / `[中文版本]` pair (file naming in [CONVENTIONS
 | 7 | Cookies & external credentials | [cookies-and-auth.md](reference/cookies-and-auth.md) | [cookies-and-auth.zh-CN.md](reference/cookies-and-auth.zh-CN.md) |
 | 8 | Data-driven testing (datasets) | [data-driven-testing.md](reference/data-driven-testing.md) | [data-driven-testing.zh-CN.md](reference/data-driven-testing.zh-CN.md) |
 | 9 | Scenario as data function (outputs) | [scenario-outputs.md](reference/scenario-outputs.md) | [scenario-outputs.zh-CN.md](reference/scenario-outputs.zh-CN.md) |
+| 9b | Plugin system | [plugin-system.md](reference/plugin-system.md) | [plugin-system.zh-CN.md](reference/plugin-system.zh-CN.md) |
 
 ### NanoGpt — agent orchestration
 
