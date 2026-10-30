@@ -4,6 +4,7 @@
 
 > Cross-module quick lookup. Every `Exception` in ws-http carries a segment code identifying its layer and failure class.
 > Segments: `1xx` transport · `2xx` expression · `3xx` assertion · `4xx` scenario engine · `5xx` plugin · `6xx` NanoGpt
+> Structure note: this is a lookup-table page by design — no Usage Examples section; see [extension-points.md](extension-points.md) and per-module pages for working code.
 
 ## Code Map
 

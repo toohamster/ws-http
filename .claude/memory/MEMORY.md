@@ -8,6 +8,7 @@
 | 文件 | 内容 |
 | --- | --- |
 | [php74-syntax.md](php74-syntax.md) | PHP 7.4 语法特性矩阵(php74 -l 实测):可用/不可用/陷阱,写代码前必查 |
+| [doc-quality-review.md](doc-quality-review.md) | **文档质量考评机制(2026-10-30 沉淀)**:三维度评分(真实性一票否决/结构完整性/使用助益);自查四步(grep 抽检幻觉 API→结构脚本化→链接校验排除行内码→读者旅程走查);既成事实不是论据,未来维护成本才是;写作者自评上限 9 分,最后 1 分靠使用者反馈 |
 | [debugging.md](debugging.md) | 调试根因案例:parse_url 字节安全、http_build_query 编码、json errno、方法论;**案例 7(极严重,2026-09-23):伪适配器+PSR-4 违反——设计模式必须三层结构(接口+抽象类+适配器),一文件一类;案例 8(非常非常严重,2026-10-10):替身违反所继承类契约+修补续命——状态生命周期必须与所属实体同构、子类化=继承契约、失败先审自己产物再审机制、坏设计推倒重写不出第二版补丁** |
 | [release-workflow.md](release-workflow.md) | **发布工作流(2026-10-09 修订)**:"发布到 main"/"发布新版本"触发完整流程;本地 master → 远端 main(push origin master:main + --tags);GitHub API(curl)打 Tag/PR/Release,token 从 git config 提取;版本号自动递增与 semver 六条同构 |
 | [pre-action-check.md](pre-action-check.md) | **执行前门禁(每次实际动作前必读)**:三问不过零动作;探讨轮固定形态;事实与表述纪律;**砍功能三问(2026-10-09 极严重教训)——真实需求/参考实现/真实障碍,三问全过还想砍=逃避;"不做"必须写得出具体代价;先立完整骨架再给方案;完整功能原则** |

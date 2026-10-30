@@ -22,7 +22,8 @@
 | 13 | cc-gpt shell (reference CLI) | [agent-ccgpt-shell.md](reference/agent-ccgpt-shell.md) |
 | 14 | Error codes (1xx–6xx) | [error-codes.md](reference/error-codes.md) |
 | 15 | Extension points (registries) | [extension-points.md](reference/extension-points.md) |
-| 16 | CHANGELOG guide | [CHANGELOG](../CHANGELOG.md) |
+| 16 | Getting started (first 5 minutes) | [getting-started.md](reference/getting-started.md) |
+| 17 | CHANGELOG guide | [CHANGELOG](../CHANGELOG.md) |
 
 ## Reference — 用户手册(简体中文)
 
@@ -44,7 +45,8 @@
 | 13 | cc-gpt 壳(参考 CLI) | [agent-ccgpt-shell](reference/zh-CN/agent-ccgpt-shell.zh-CN.md) |
 | 14 | 错误码(1xx–6xx) | [error-codes](reference/zh-CN/error-codes.zh-CN.md) |
 | 15 | 扩展点(注册表) | [extension-points](reference/zh-CN/extension-points.zh-CN.md) |
-| 16 | 版本历史 | [CHANGELOG](../CHANGELOG.md)(双语共用) |
+| 16 | 快速上手(前 5 分钟) | [getting-started](reference/zh-CN/getting-started.zh-CN.md) |
+| 17 | 版本历史 | [CHANGELOG](../CHANGELOG.md)(双语共用) |
 
 ## Guides — Mechanics Wiki (中文)
 

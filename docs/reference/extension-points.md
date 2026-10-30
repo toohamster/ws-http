@@ -96,7 +96,7 @@ final class VaultSource implements ValueSource
     public function fetch(string $var, array $options): ValueResult
     {
         $secret = $this->vault->read((string) ($options['path'] ?? ''));
-        return ValueResult::of($secret);   // or a structured failure
+        return ValueResult::got($secret);   // or ValueResult::missing(reason) / pending()
     }
 }
 
@@ -124,6 +124,15 @@ $runner = new Runner(new LoggingRequestFactory());   // every scenario HTTP call
 ```
 
 Built-ins: `RequestFactory` (real HTTP) and `StaticRequestFactory` (reuses one injected instance — used by tool integration).
+
+## Configuration
+
+No configuration files anywhere in the extension mechanism — all wiring is code. Defaults live inside each registry (`Comparison::bootBuiltins()`, the built-in loader set in `DatasetRegistry`, `stdin`/`environment`/`poll` pre-registered per shell assembly).
+
+## Dependencies
+
+- **Depends on**: `Ws\Http\Contract\*` interfaces only; each registry is standalone.
+- **Depended on by**: `Automated\Runner` (operators, sources, pause), `Assert\Watcher` (operators), `Plugin\PluginRegistry` (aggregation point #3).
 
 ## Notes & Guarantees
 

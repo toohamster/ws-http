@@ -81,6 +81,38 @@ final class WordPress\Client
 
 认证方式:Application Password(`ApplicationPasswordAuthProvider`)。
 
+### 端点 API 参考
+
+签名经 `src/Ws/Http/Plugin/` 实测:
+
+**OpenAI**
+
+```php
+// ChatEndpoint(POST /chat/completions)
+public function create($prompt, string $model = 'gpt-3.5-turbo', array $extra = []): Response;
+//   $prompt: 字符串简写 → [['role' => 'user', 'content' => $prompt]]
+//   $extra:  顶层合并的载荷键(temperature、max_tokens、tools…)
+
+// ModelsEndpoint(GET /models)
+public function list(): Response;
+```
+
+**WordPress**
+
+```php
+// PostsEndpoint
+public function list(array $query = []): Response;                                  // WP_Query 参数
+public function get(int $id): Response;
+public function create(string $title, string $content, string $status = 'draft'): Response;
+public function update(int $id, array $fields): Response;                            // 部分字段
+public function delete(int $id): Response;
+
+// MediaEndpoint
+public function upload(string $filepath, array $extra = []): Response;               // $extra: title 等 WP 附件字段
+```
+
+所有端点方法返回 core `Response`——JSON 自动解码与 `Watcher` 断言原样适用。
+
 ## Usage Examples
 
 ### OpenAI 兼容对话
@@ -119,7 +151,7 @@ use Ws\Http\Plugin\WordPress\Client;
 
 $wp = new WordPress\Client('https://blog.example.com', $appPassword, 'admin');
 $wp->posts()->create('Hello', 'First post body');
-$wp->media()->upload('/tmp/photo.jpg', 'image/jpeg');
+$wp->media()->upload('/tmp/photo.jpg', ['title' => 'My photo']);
 ```
 
 ### 编写自定义插件

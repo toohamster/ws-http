@@ -4,6 +4,7 @@
 
 > 跨模块速查。ws-http 的每个 `Exception` 都携带段码,标识所属层与失败类别。
 > 段:`1xx` 传输 · `2xx` 表达式 · `3xx` 断言 · `4xx` 场景引擎 · `5xx` 插件 · `6xx` NanoGpt
+> 结构说明:本页按设计即为查表页——无 Usage Examples 节;可运行代码见 [extension-points.zh-CN.md](./extension-points.zh-CN.md) 与各模块页。
 
 ## 码表
 

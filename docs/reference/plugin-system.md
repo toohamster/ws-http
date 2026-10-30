@@ -81,6 +81,38 @@ final class WordPress\Client
 
 Authentication: Application Password (`ApplicationPasswordAuthProvider`).
 
+### Endpoint API Reference
+
+Signatures verified against `src/Ws/Http/Plugin/`:
+
+**OpenAI**
+
+```php
+// ChatEndpoint (POST /chat/completions)
+public function create($prompt, string $model = 'gpt-3.5-turbo', array $extra = []): Response;
+//   $prompt: string shorthand → [['role' => 'user', 'content' => $prompt]]
+//   $extra:  payload keys merged at top level (temperature, max_tokens, tools, ...)
+
+// ModelsEndpoint (GET /models)
+public function list(): Response;
+```
+
+**WordPress**
+
+```php
+// PostsEndpoint
+public function list(array $query = []): Response;                                  // WP_Query args
+public function get(int $id): Response;
+public function create(string $title, string $content, string $status = 'draft'): Response;
+public function update(int $id, array $fields): Response;                            // partial fields
+public function delete(int $id): Response;
+
+// MediaEndpoint
+public function upload(string $filepath, array $extra = []): Response;               // $extra: title 等 WP attachment 字段
+```
+
+All endpoint methods return the core `Response` — JSON auto-decoding and `Watcher` assertions apply unchanged.
+
 ## Usage Examples
 
 ### OpenAI-compatible chat
@@ -119,7 +151,7 @@ use Ws\Http\Plugin\WordPress\Client;
 
 $wp = new WordPress\Client('https://blog.example.com', $appPassword, 'admin');
 $wp->posts()->create('Hello', 'First post body');
-$wp->media()->upload('/tmp/photo.jpg', 'image/jpeg');
+$wp->media()->upload('/tmp/photo.jpg', ['title' => 'My photo']);
 ```
 
 ### Writing a custom plugin

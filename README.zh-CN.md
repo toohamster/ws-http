@@ -132,7 +132,7 @@ foreach ($agent->run('帮我读一下 README.md 并总结') as $event) {
 | Core | HTTP 客户端、配置参考 |
 | Functional | 断言、表达式、场景、变量、Cookie、数据驱动、场景输出 |
 | NanoGpt | agent 核心、传输层、会话/记忆/技能、cc-gpt 壳 |
-| Reference | 错误码(1xx–6xx)、扩展点 |
+| Reference | 快速上手(前 5 分钟)、错误码(1xx–6xx)、扩展点 |
 
 设计文档(中文,开发者向决策档案):[design/README.md](design/README.md) · 进度台账:[design/PROGRESS.md](design/PROGRESS.md)
 

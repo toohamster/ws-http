@@ -132,7 +132,7 @@ Full manual index (16 module references, bilingual): **[docs/README.md](docs/REA
 | Core | HTTP client, configuration reference |
 | Functional | assertions, expressions, scenarios, variables, cookies, datasets, outputs |
 | NanoGpt | agent core, transports, session/memory/skills, cc-gpt shell |
-| Reference | error codes (1xx–6xx), extension points |
+| Reference | getting started (first 5 minutes), error codes (1xx–6xx), extension points |
 
 Design documents (Chinese, developer-facing decision archive): [design/README.md](design/README.md) · progress ledger: [design/PROGRESS.md](design/PROGRESS.md)
 

@@ -96,7 +96,7 @@ final class VaultSource implements ValueSource
     public function fetch(string $var, array $options): ValueResult
     {
         $secret = $this->vault->read((string) ($options['path'] ?? ''));
-        return ValueResult::of($secret);   // 或结构化失败
+        return ValueResult::got($secret);   // 或 ValueResult::missing(reason) / pending()
     }
 }
 
@@ -124,6 +124,15 @@ $runner = new Runner(new LoggingRequestFactory());   // 场景的每个 HTTP 调
 ```
 
 内建:`RequestFactory`(真实 HTTP)与 `StaticRequestFactory`(复用一个注入实例——工具集成用)。
+
+## Configuration
+
+扩展机制中没有任何配置文件——全部装配在代码里。默认集住在各注册表内(`Comparison::bootBuiltins()`、`DatasetRegistry` 的内建 loader 集、壳装配时预注册的 `stdin`/`environment`/`poll`)。
+
+## Dependencies
+
+- **依赖**:仅 `Ws\Http\Contract\*` 接口;各注册表相互独立。
+- **被依赖**:`Automated\Runner`(操作符/source/pause)、`Assert\Watcher`(操作符)、`Plugin\PluginRegistry`(扩展点 3 的聚合点)。
 
 ## 说明与保证
 
