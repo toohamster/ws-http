@@ -1,4 +1,4 @@
-[English](./plugin-system.md) | [中文版本](./plugin-system.zh-CN.md)
+[English](./plugin-system.md) | [中文版本](./zh-CN/plugin-system.zh-CN.md)
 
 # Plugin System
 

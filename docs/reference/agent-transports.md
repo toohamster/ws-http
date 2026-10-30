@@ -1,4 +1,4 @@
-[English](./agent-transports.md) | [中文版本](./agent-transports.zh-CN.md)
+[English](./agent-transports.md) | [中文版本](./zh-CN/agent-transports.zh-CN.md)
 
 # NanoGpt — Transports (Multi-Provider)
 

@@ -1,4 +1,4 @@
-[English](./error-codes.md) | [中文版本](./error-codes.zh-CN.md)
+[English](./error-codes.md) | [中文版本](./zh-CN/error-codes.zh-CN.md)
 
 # Error Code Reference
 

@@ -1,4 +1,4 @@
-[English](./core-configuration.md) | [中文版本](./core-configuration.zh-CN.md)
+[English](./core-configuration.md) | [中文版本](./zh-CN/core-configuration.zh-CN.md)
 
 # Core — Configuration Reference
 

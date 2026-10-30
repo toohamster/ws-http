@@ -1,4 +1,4 @@
-[English](./agent-core.md) | [中文版本](./agent-core.zh-CN.md)
+[English](./agent-core.md) | [中文版本](./zh-CN/agent-core.zh-CN.md)
 
 # NanoGpt — Agent Core
 

@@ -1,4 +1,4 @@
-[English](./core-http-client.md) | [中文版本](./core-http-client.zh-CN.md)
+[English](./core-http-client.md) | [中文版本](./zh-CN/core-http-client.zh-CN.md)
 
 # Core — HTTP Client
 

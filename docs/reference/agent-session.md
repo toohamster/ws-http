@@ -1,4 +1,4 @@
-[English](./agent-session.md) | [中文版本](./agent-session.zh-CN.md)
+[English](./agent-session.md) | [中文版本](./zh-CN/agent-session.zh-CN.md)
 
 # NanoGpt — Session, Memory & Skills
 

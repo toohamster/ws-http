@@ -1,4 +1,4 @@
-[English](./assertion.md) | [中文版本](./assertion.zh-CN.md)
+[English](./assertion.md) | [中文版本](./zh-CN/assertion.zh-CN.md)
 
 # Assertion Layer (Watcher)
 

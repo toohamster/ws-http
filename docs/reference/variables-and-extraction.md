@@ -1,4 +1,4 @@
-[English](./variables-and-extraction.md) | [中文版本](./variables-and-extraction.zh-CN.md)
+[English](./variables-and-extraction.md) | [中文版本](./zh-CN/variables-and-extraction.zh-CN.md)
 
 # Variables & Extraction
 

@@ -1,4 +1,4 @@
-[English](./cookies-and-auth.md) | [中文版本](./cookies-and-auth.zh-CN.md)
+[English](./cookies-and-auth.md) | [中文版本](./zh-CN/cookies-and-auth.zh-CN.md)
 
 # Cookies & External Credentials
 

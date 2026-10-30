@@ -23,14 +23,10 @@
 
 ## 2. File pairing (bilingual mechanism)
 
-1. **Naming**: `<module>.md` (English, the default) + `<module>.zh-CN.md` (Chinese mirror). Same basename, one-to-one. A missing pair member is a broken index entry — treat it as a build error.
-2. **Switch line**: the **first line** of every paired document (both languages) is exactly:
+1. **Naming & layout (directory per language)**: English is the default face and lives directly in `reference/` — `reference/<module>.md`. Each additional language gets **one dedicated subdirectory** — `reference/zh-CN/<module>.md` today; adding a language (ja, de…) = adding one directory and translating the 16 pages, never touching existing languages. Pairing invariant: **every language directory must contain exactly the same module set** (file count and names differ only by the language directory) — this is mechanically checkable.
+2. **Switch line**: the **first line** of every paired document. English page links `[中文版本](./zh-CN/module-file.zh-CN.md)`; Chinese page links `[English](../module-file.md)` — where `module-file` is the real page basename. The pattern is documentation; real pages carry live links.
 
-   ```markdown
-   [English](./<module>.md) | [中文版本](./<module>.zh-CN.md)
-   ```
-
-   For the two root READMEs: `[English](README.md) | [中文版本](README.zh-CN.md)` (each file links to its counterpart).
+   For the two root READMEs: each file links to its counterpart — the Chinese file links `[English](README.md)`, the English one links `[中文版本](README.zh-CN.md)` (live links — both files exist at repo root).
 3. **Paragraph alignment**: the Chinese mirror follows the English document section-for-section, same order, same headings count. A section added to one language must be added to the other in the same change (one commit per content unit — no language drift).
 4. **What is NOT translated**:
    - Code blocks (identical in both languages; only comments inside code may be translated);
@@ -95,7 +91,7 @@ Additional rules:
 ## 5. Index & navigation contract
 
 - `docs/README.md` is the **single index**: sections `Reference (manual)` and `Guides (mechanics wiki)` + a pointer to `design/` for contributors;
-- Every index entry lists **both** language links side by side: `[module](reference/<module>.md) · [中文](reference/<module>.zh-CN.md)`;
+- Index structure: the Reference section groups by **language block** — English links (`reference/<module>.md`) and a Chinese block (`reference/zh-CN/<module>.zh-CN.md`) — so a new language adds one block;
 - The root `README.md` (English) links to `docs/README.md` and to each reference page grouped by layer; `README.zh-CN.md` mirrors it;
 - `docs/` guides link to their related reference pages and vice versa (Related: …).
 

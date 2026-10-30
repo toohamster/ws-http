@@ -25,14 +25,10 @@
 
 ## 2. 文件配对(双语文机制)
 
-1. **命名**:`<module>.md`(英文,默认主文档)+ `<module>.zh-CN.md`(中文对照)。同名配对,一一对应。缺一篇即索引断链——按构建错误对待。
-2. **切换行**:每篇配对文档(双语皆然)的**第一行**固定为:
+1. **命名与布局(按语言分目录)**:英文是默认面,直接住在 `reference/`——`reference/<module>.md`。每种新增语言独占**一个子目录**——今天是 `reference/zh-CN/<module>.md`;加语言(ja、de…)= 加一个目录并翻译 16 篇,绝不触碰既有语言。配对不变量:**每个语言目录必须持有完全相同的模块集**(文件数与文件名仅差语言目录)——可机械校验。
+2. **切换行**:每篇配对文档的**第一行**。英文页链接 `[中文版本](./zh-CN/module-file.zh-CN.md)`;中文页链接 `[English](../module-file.md)`——`module-file` 为真实页文件名。此处为模式说明;真实页面携带真实链接。
 
-   ```markdown
-   [English](./<module>.md) | [中文版本](./<module>.zh-CN.md)
-   ```
-
-   两个根 README 用:`[English](README.md) | [中文版本](README.zh-CN.md)`(各自链接对方)。
+   两个根 README:中文文件链接 `[English](README.md)`,英文文件链接 `[中文版本](README.zh-CN.md)`(真实链接——两文件都在仓库根)。
 3. **段落对齐**:中文镜像逐节跟随英文文档——同顺序、同节标题数。一侧增节,必须同一次变更补进另一侧(一内容单元一提交——语言不得漂移)。
 4. **不翻译的内容**:
    - 代码块(双语完全一致;仅代码内注释可译);
@@ -101,7 +97,7 @@
 
 ## 5. 索引契约(docs/README)
 
-- `docs/README.md` 是 **docs/ 的唯一索引**:Reference 区(16 篇手册 × 2 语言并列)与 Guides 区(机制 wiki)分区列出;
+- `docs/README.md` 是 **docs/ 的唯一索引**:Reference 区按**语言分块**(英文块 `reference/<module>.md` + 中文块 `reference/zh-CN/<module>.zh-CN.md`),加语言 = 加一块;Guides 区(机制 wiki)分区列出;
 - 根 README 双语版各含一条 Documentation 导航,指向 `docs/README.md`;
 - `design/` 只被**单向引用**(docs/design 细节链接),不出现在索引里(它是开发者档案)。
 

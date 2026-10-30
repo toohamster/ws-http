@@ -1,4 +1,4 @@
-[English](./scenario-testing.md) | [中文版本](./scenario-testing.zh-CN.md)
+[English](./scenario-testing.md) | [中文版本](./zh-CN/scenario-testing.zh-CN.md)
 
 # Scenario Testing Engine
 

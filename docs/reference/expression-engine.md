@@ -1,4 +1,4 @@
-[English](./expression-engine.md) | [中文版本](./expression-engine.zh-CN.md)
+[English](./expression-engine.md) | [中文版本](./zh-CN/expression-engine.zh-CN.md)
 
 # Expression Engine (JSONPath Subset)
 

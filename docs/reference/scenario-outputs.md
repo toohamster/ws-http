@@ -1,4 +1,4 @@
-[English](./scenario-outputs.md) | [中文版本](./scenario-outputs.zh-CN.md)
+[English](./scenario-outputs.md) | [中文版本](./zh-CN/scenario-outputs.zh-CN.md)
 
 # Scenario as Data Function (Scenario Outputs)
 

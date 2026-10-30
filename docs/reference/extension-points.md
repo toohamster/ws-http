@@ -1,4 +1,4 @@
-[English](./extension-points.md) | [中文版本](./extension-points.zh-CN.md)
+[English](./extension-points.md) | [中文版本](./zh-CN/extension-points.zh-CN.md)
 
 # Extension Points
 

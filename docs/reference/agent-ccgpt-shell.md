@@ -1,4 +1,4 @@
-[English](./agent-ccgpt-shell.md) | [中文版本](./agent-ccgpt-shell.zh-CN.md)
+[English](./agent-ccgpt-shell.md) | [中文版本](./zh-CN/agent-ccgpt-shell.zh-CN.md)
 
 # cc-gpt Shell (Reference CLI)
 

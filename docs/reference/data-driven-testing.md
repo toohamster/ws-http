@@ -1,4 +1,4 @@
-[English](./data-driven-testing.md) | [中文版本](./data-driven-testing.zh-CN.md)
+[English](./data-driven-testing.md) | [中文版本](./zh-CN/data-driven-testing.zh-CN.md)
 
 # Data-Driven Testing (Datasets)
 

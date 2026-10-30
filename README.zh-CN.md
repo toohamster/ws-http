@@ -48,7 +48,7 @@ $request = (new Request())->withOptions(fn ($o) => $o
     ->withProxy('127.0.0.1', 8787));
 ```
 
-完整 core 用法(POST/PUT/multipart 文件/cookie/异常处理):[examples/httpbin-quick](examples/httpbin-quick/run.php) · 手册:[docs/reference/core-http-client.zh-CN.md](docs/reference/core-http-client.zh-CN.md)
+完整 core 用法(POST/PUT/multipart 文件/cookie/异常处理):[examples/httpbin-quick](examples/httpbin-quick/run.php) · 手册:[docs/reference/zh-CN/core-http-client.zh-CN.md](docs/reference/zh-CN/core-http-client.zh-CN.md)
 
 ### functional:断言 + 场景自动化
 
@@ -86,7 +86,7 @@ php bin/ws-http run a.json b.json --format=json   # JSON 报告供 CI
 php bin/ws-http run scenario.json --var env=prod  # 外部注入变量
 ```
 
-手册:[docs/reference/scenario-testing.zh-CN.md](docs/reference/scenario-testing.zh-CN.md) · 编程式调用示例:[examples/scenario](examples/scenario/run.php)
+手册:[docs/reference/zh-CN/scenario-testing.zh-CN.md](docs/reference/zh-CN/scenario-testing.zh-CN.md) · 编程式调用示例:[examples/scenario](examples/scenario/run.php)
 
 ### plugin:三方系统接入
 
@@ -103,7 +103,7 @@ $wp = new \Ws\Http\Plugin\WordPress\Client('https://blog.example.com', $appPassw
 $wp->posts()->create('标题', '正文');
 ```
 
-手册:[docs/reference/plugin-system.zh-CN.md](docs/reference/plugin-system.zh-CN.md) · 完整可运行示例:[examples/openai-chat](examples/openai-chat/run.php)
+手册:[docs/reference/zh-CN/plugin-system.zh-CN.md](docs/reference/zh-CN/plugin-system.zh-CN.md) · 完整可运行示例:[examples/openai-chat](examples/openai-chat/run.php)
 
 ### NanoGpt:多厂商 agent 编排层(`Ws\Http\NanoGpt`)
 
@@ -121,7 +121,7 @@ foreach ($agent->run('帮我读一下 README.md 并总结') as $event) {
 }
 ```
 
-手册:[agent-core](docs/reference/agent-core.zh-CN.md) · [transports](docs/reference/agent-transports.zh-CN.md) · 参考 CLI:[examples/cc-gpt](examples/cc-gpt/README.md)
+手册:[agent-core](docs/reference/zh-CN/agent-core.zh-CN.md) · [transports](docs/reference/zh-CN/agent-transports.zh-CN.md) · 参考 CLI:[examples/cc-gpt](examples/cc-gpt/README.md)
 
 ## 文档
 
@@ -144,7 +144,7 @@ foreach ($agent->run('帮我读一下 README.md 并总结') as $event) {
 | 自定义提取 source | `VarExtractor::registerSource('xml', $impl)` | XML/HTML 提取 |
 | 三方系统适配 | 实现 `PluginInterface` + `PluginRegistry::register()` | 新的业务系统客户端 |
 
-机制最小化:注册表 + 接口,无容器/事件/自动发现。手册:[docs/reference/extension-points.zh-CN.md](docs/reference/extension-points.zh-CN.md)
+机制最小化:注册表 + 接口,无容器/事件/自动发现。手册:[docs/reference/zh-CN/extension-points.zh-CN.md](docs/reference/zh-CN/extension-points.zh-CN.md)
 
 ## 开发
 

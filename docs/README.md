@@ -1,47 +1,50 @@
 # ws-http Documentation
 
-> **Division of labor:** `docs/reference/` is the bilingual **user manual** (module-by-module API & usage) · root-level guides in this directory are the Chinese **mechanics wiki** (how the system works inside) · [`design/`](../design/README.md) is the Chinese **decision archive** (why it is designed this way — developer-facing, not translated).
+> **Division of labor:** `docs/reference/` is the **user manual** (module-by-module API & usage; English default + `reference/zh-CN/` mirror, one directory per language) · root-level guides in this directory are the Chinese **mechanics wiki** (how the system works inside) · [`design/`](../design/README.md) is the Chinese **decision archive** (why it is designed this way — developer-facing, not translated).
 
-## Reference — User Manual (bilingual)
+## Reference — User Manual (English)
 
-Each page is an `[English]` / `[中文版本]` pair (file naming in [CONVENTIONS.md](CONVENTIONS.md)).
+| # | Module | Page |
+| --- | --- | --- |
+| 1 | HTTP client (`Request` / `Response` / `Body`) | [core-http-client.md](reference/core-http-client.md) |
+| 2 | Configuration reference (`RequestOptions`) | [core-configuration.md](reference/core-configuration.md) |
+| 3 | Assertion layer (`Watcher`) | [assertion.md](reference/assertion.md) |
+| 4 | Expression engine (JSONPath subset) | [expression-engine.md](reference/expression-engine.md) |
+| 5 | Scenario testing (`Runner` / CLI) | [scenario-testing.md](reference/scenario-testing.md) |
+| 6 | Variables & extraction | [variables-and-extraction.md](reference/variables-and-extraction.md) |
+| 7 | Cookies & external credentials | [cookies-and-auth.md](reference/cookies-and-auth.md) |
+| 8 | Data-driven testing (datasets) | [data-driven-testing.md](reference/data-driven-testing.md) |
+| 9 | Scenario as data function (outputs) | [scenario-outputs.md](reference/scenario-outputs.md) |
+| 9b | Plugin system | [plugin-system.md](reference/plugin-system.md) |
+| 10 | Agent core (loop / tools / sandbox) | [agent-core.md](reference/agent-core.md) |
+| 11 | Transports (multi-provider) | [agent-transports.md](reference/agent-transports.md) |
+| 12 | Session, memory & skills | [agent-session.md](reference/agent-session.md) |
+| 13 | cc-gpt shell (reference CLI) | [agent-ccgpt-shell.md](reference/agent-ccgpt-shell.md) |
+| 14 | Error codes (1xx–6xx) | [error-codes.md](reference/error-codes.md) |
+| 15 | Extension points (registries) | [extension-points.md](reference/extension-points.md) |
+| 16 | CHANGELOG guide | [CHANGELOG](../CHANGELOG.md) |
 
-### Core — HTTP client
+## Reference — 用户手册(简体中文)
 
-| # | Module | English | 中文 |
-| --- | --- | --- | --- |
-| 1 | HTTP client (`Request` / `Response` / `Body`) | [core-http-client.md](reference/core-http-client.md) | [core-http-client.zh-CN.md](reference/core-http-client.zh-CN.md) |
-| 2 | Configuration reference (`RequestOptions`) | [core-configuration.md](reference/core-configuration.md) | [core-configuration.zh-CN.md](reference/core-configuration.zh-CN.md) |
-
-### Functional — testing engine
-
-| # | Module | English | 中文 |
-| --- | --- | --- | --- |
-| 3 | Assertion layer (`Watcher`) | [assertion.md](reference/assertion.md) | [assertion.zh-CN.md](reference/assertion.zh-CN.md) |
-| 4 | Expression engine (JSONPath subset) | [expression-engine.md](reference/expression-engine.md) | [expression-engine.zh-CN.md](reference/expression-engine.zh-CN.md) |
-| 5 | Scenario testing (`Runner` / CLI) | [scenario-testing.md](reference/scenario-testing.md) | [scenario-testing.zh-CN.md](reference/scenario-testing.zh-CN.md) |
-| 6 | Variables & extraction | [variables-and-extraction.md](reference/variables-and-extraction.md) | [variables-and-extraction.zh-CN.md](reference/variables-and-extraction.zh-CN.md) |
-| 7 | Cookies & external credentials | [cookies-and-auth.md](reference/cookies-and-auth.md) | [cookies-and-auth.zh-CN.md](reference/cookies-and-auth.zh-CN.md) |
-| 8 | Data-driven testing (datasets) | [data-driven-testing.md](reference/data-driven-testing.md) | [data-driven-testing.zh-CN.md](reference/data-driven-testing.zh-CN.md) |
-| 9 | Scenario as data function (outputs) | [scenario-outputs.md](reference/scenario-outputs.md) | [scenario-outputs.zh-CN.md](reference/scenario-outputs.zh-CN.md) |
-| 9b | Plugin system | [plugin-system.md](reference/plugin-system.md) | [plugin-system.zh-CN.md](reference/plugin-system.zh-CN.md) |
-
-### NanoGpt — agent orchestration
-
-| # | Module | English | 中文 |
-| --- | --- | --- | --- |
-| 10 | Agent core (loop / tools / sandbox) | [agent-core.md](reference/agent-core.md) | [agent-core.zh-CN.md](reference/agent-core.zh-CN.md) |
-| 11 | Transports (multi-provider) | [agent-transports.md](reference/agent-transports.md) | [agent-transports.zh-CN.md](reference/agent-transports.zh-CN.md) |
-| 12 | Session, memory & skills | [agent-session.md](reference/agent-session.md) | [agent-session.zh-CN.md](reference/agent-session.zh-CN.md) |
-| 13 | cc-gpt shell (reference CLI) | [agent-ccgpt-shell.md](reference/agent-ccgpt-shell.md) | [agent-ccgpt-shell.zh-CN.md](reference/agent-ccgpt-shell.zh-CN.md) |
-
-### Reference — cross-module
-
-| # | Module | English | 中文 |
-| --- | --- | --- | --- |
-| 14 | Error codes (1xx–6xx) | [error-codes.md](reference/error-codes.md) | [error-codes.zh-CN.md](reference/error-codes.zh-CN.md) |
-| 15 | Extension points (registries) | [extension-points.md](reference/extension-points.md) | [extension-points.zh-CN.md](reference/extension-points.zh-CN.md) |
-| 16 | CHANGELOG guide | [CHANGELOG](../CHANGELOG.md) | —(版本历史,双语共用) |
+| # | 模块 | 页面 |
+| --- | --- | --- |
+| 1 | HTTP 客户端(Request / Response / Body) | [core-http-client](reference/zh-CN/core-http-client.zh-CN.md) |
+| 2 | 配置参考(RequestOptions) | [core-configuration](reference/zh-CN/core-configuration.zh-CN.md) |
+| 3 | 断言层(Watcher) | [assertion](reference/zh-CN/assertion.zh-CN.md) |
+| 4 | 表达式引擎(JSONPath 子集) | [expression-engine](reference/zh-CN/expression-engine.zh-CN.md) |
+| 5 | 场景测试引擎(Runner / CLI) | [scenario-testing](reference/zh-CN/scenario-testing.zh-CN.md) |
+| 6 | 变量与提取 | [variables-and-extraction](reference/zh-CN/variables-and-extraction.zh-CN.md) |
+| 7 | Cookie 与外部凭据注入 | [cookies-and-auth](reference/zh-CN/cookies-and-auth.zh-CN.md) |
+| 8 | 数据驱动测试(数据集) | [data-driven-testing](reference/zh-CN/data-driven-testing.zh-CN.md) |
+| 9 | 场景作为取数函数(outputs) | [scenario-outputs](reference/zh-CN/scenario-outputs.zh-CN.md) |
+| 9b | 插件系统 | [plugin-system](reference/zh-CN/plugin-system.zh-CN.md) |
+| 10 | Agent 核心(循环 / 工具 / 沙箱) | [agent-core](reference/zh-CN/agent-core.zh-CN.md) |
+| 11 | 传输层(多厂商) | [agent-transports](reference/zh-CN/agent-transports.zh-CN.md) |
+| 12 | 会话、记忆与技能 | [agent-session](reference/zh-CN/agent-session.zh-CN.md) |
+| 13 | cc-gpt 壳(参考 CLI) | [agent-ccgpt-shell](reference/zh-CN/agent-ccgpt-shell.zh-CN.md) |
+| 14 | 错误码(1xx–6xx) | [error-codes](reference/zh-CN/error-codes.zh-CN.md) |
+| 15 | 扩展点(注册表) | [extension-points](reference/zh-CN/extension-points.zh-CN.md) |
+| 16 | 版本历史 | [CHANGELOG](../CHANGELOG.md)(双语共用) |
 
 ## Guides — Mechanics Wiki (中文)
 
