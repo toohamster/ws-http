@@ -2,6 +2,16 @@
 
 所有显著变更记录于此。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [2.11.0] - 2026-10-30
+
+### Added
+- 双语技术文档工程(D0–D3):`docs/CONVENTIONS.md`(双语规范——受众图谱/分语目录配对/五节模板/32 词术语表)+ `docs/README.md`(统一索引,Reference 按语言分块)+ 根 README 双语拆分(`README.md` 英文主文档 / `README.zh-CN.md` 中文对照,顶部切换链接)
+- 用户手册 17 篇 × 2 语言(`docs/reference/`):core-http-client / core-configuration / assertion / expression-engine / scenario-testing / variables-and-extraction / cookies-and-auth / data-driven-testing / scenario-outputs / plugin-system / agent-core / agent-transports / agent-session / agent-ccgpt-shell / error-codes / extension-points / getting-started(贯通教程 + 排障表)——全部签名经 src/ 实测,代码示例双语一致
+- `reference/` 按语言分目录(英文默认面 + `zh-CN/` 对照)——加语言 = 加一个目录,配对不变量(每语言目录同模块集)可机械校验(17/17)
+
+### Verified
+- 全站链接校验 0 断链;质量考评机制沉淀(`.claude/memory/doc-quality-review.md`:三维度评分/自查四步)
+
 ## [2.10.0] - 2026-10-27
 
 ### Added
