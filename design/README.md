@@ -36,6 +36,8 @@
 | [26-Skill设计.md](26-Skill设计.md) | NanoGpt/壳 | 任务级能力包:skills/*.skill.json(指令模板+参数槽+allowedTools)→ /skill 命令,注入位=user 消息渲染;仅落需求,实现待 design/25 层 2 落地后 |
 | [27-场景输出契约设计.md](27-场景输出契约设计.md) | functional | 场景作为取数函数:outputs 输出变量白名单(V19)+ ScenarioOutput 结果集出口(secret 脱敏/键序稳定);ApiFetchTool 场景形态升级(scenario+vars+outputs 双形态);O1–O2 已完成(2026-10-19) |
 | [28-厂商接入层设计.md](28-厂商接入层设计.md) | NanoGpt/Transport | 编排与传输分离(切口判据:编排层零厂商名)、ChatTransportInterface(chat + capabilities 并入 ModelSource)、重试完整语义(Retry-After 优先/指数退避)、错误语义分类 620–624、双层结构(协议族抽象基类 × 每厂商具体类,7 厂商 + Generic 逃生门);D1–D3 已完成(Agent/壳/压缩/探测全走 Transport,smoke 3/3,2026-10-16);来源:3rd/php-ai-sdk 对照(参考物不入库) |
+| [29-步骤上下文契约设计.md](29-步骤上下文契约设计.md) | functional | 补 design/14 点名缺口"步骤上下文无契约":retry(失败重发)/ until(轮询直到断言通过,与 pause+poll 划界:等状态 vs 等值)/ when(条件跳过,复用 skipped 状态);V20–V23;不做并行(PHP 串行模型 + 线性变量流,并行归外部进程编排)/ if-else 编排/套件复用 |
+| [30-质量管理报告对接设计.md](30-质量管理报告对接设计.md) | functional/Qm | 失败流转质量管理平台的三段式:场景 reporting 声明块(失败意味着什么)→ 引擎收尾求值 Report.issueIntent(计算,零网络)→ IssueSink 适配器 + 配置(去重/分配/平台 API,独立 issues 子命令转换);决策:执行完只算不发、跑完后从报告转换创建(可重跑/可审核/退出码语义不污染) |
 
 ## 项目一句话概括
 
