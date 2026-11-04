@@ -138,8 +138,5 @@ $runner = new Runner(new LoggingRequestFactory());   // 场景的每个 HTTP 调
 
 - **内建是默认,不是锁**——注册项与内建共存;重名 → 异常(501/603 类),绝不静默覆盖;
 - **无横切魔法**——插件不能改变引擎行为,只能增加词汇与客户端。这让内核保持可预测;
-- 扩展失败的错误码归各自段(见 [error-codes.zh-CN.md](./error-codes.zh-CN.md))。
-
-## Dependencies
-
-所有注册表只依赖自己的契约接口(在 `Ws\Http\Contract`)。它们都不加载配置文件、不触网——装配永远显式,发生在组合代码里(你的 bootstrap 或插件的 `register()`)。
+- 扩展失败的错误码归各自段(见 [error-codes.zh-CN.md](./error-codes.zh-CN.md));
+- 所有注册表都不加载配置文件、不触网——装配永远显式,发生在组合代码里(你的 bootstrap 或插件的 `register()`)。

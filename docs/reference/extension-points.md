@@ -139,7 +139,4 @@ No configuration files anywhere in the extension mechanism — all wiring is cod
 - **Built-ins are defaults, not locks** — registered entries coexist with them; name collisions → exception (501/603-style), never silent overwrite.
 - **No cross-cutting magic** — a plugin cannot change engine behavior, only add vocabulary and clients. This keeps the kernel predictable.
 - **Error codes for extension failures** live in their owning segments (see [error-codes.md](error-codes.md)).
-
-## Dependencies
-
-All registries depend only on their own contract interfaces (in `Ws\Http\Contract`). None of them load configuration files or reach the network — wiring is always explicit, in composition code (your bootstrap or a plugin's `register()`).
+- None of the registries load configuration files or reach the network — wiring is always explicit, in composition code (your bootstrap or a plugin's `register()`).

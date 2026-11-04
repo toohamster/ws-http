@@ -1,0 +1,180 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * 本地质量关卡(pre-flight;release-workflow §0)。
+ *
+ * "发布到 main"/"发布新版本"指令触发的第一步、任何 git 动作之前强制跑全。
+ * 三道门(挡产物质量,机械可判定、误判率趋近于零):
+ *   ① 全量测试 ② PHPStan ③ 文档完整性(链接 0 断链 + 语言目录配对不变量)。
+ * CHANGELOG 完整性不设机器门:语义核对只能人做(关键词启发式会假阳性),
+ * 保留在发布流程 B 的人工核对步骤(Release notes 生成时核对 lastTag..HEAD)。
+ * 任一门 FAIL → 退出码非零(红了不发;修复后重跑)。
+ *
+ * 用法:php74 bin/check [--skip-tests](--skip-tests 仅限文档-only 变更且用户明示时)
+ */
+
+const ROOT = __DIR__ . '/..';
+
+/**
+ * 运行一条子命令:捕获全量输出 + 真实退出码。
+ *
+ * 不用 `passthru('... | tail -N', $code)`:管道会让 $code 取到 tail 的退出码,
+ * 被检命令失败也判绿(门形同虚设)。此处 exec 无管道,$code 即命令真实退出码;
+ * 输出全量捕获后由调用方决定展示多少行。
+ *
+ * @return array{0: string[], 1: int} [输出行数组, 退出码]
+ */
+function runCmd(string $cmd): array
+{
+    $output = [];
+    $code = 0;
+    exec($cmd . ' 2>&1', $output, $code);
+    return [$output, $code];
+}
+
+/** 打印输出末 $lines 行(失败诊断一次拿全,不截断到看不出根因)。 */
+function printTail(array $output, int $lines): void
+{
+    foreach (array_slice($output, -$lines) as $line) {
+        echo "  $line\n";
+    }
+}
+
+$failures = [];
+$skipped = 0;
+$startTime = microtime(true);
+
+echo "=== ws-http local quality gate (pre-flight) ===\n\n";
+
+// ---------- 门 1:全量测试 ----------
+$skipTests = in_array('--skip-tests', $argv, true);
+if ($skipTests) {
+    echo "[SKIP] gate 1: tests (--skip-tests)\n\n";
+    $skipped++;
+} else {
+    echo "[RUN ] gate 1: full test suite\n";
+    [$output, $code] = runCmd('cd ' . escapeshellarg(ROOT) . ' && ' . PHP_BINARY . ' vendor/bin/phpunit --no-coverage');
+    if ($code !== 0) {
+        $failures[] = 'gate 1: tests failed';
+        echo "  FAILED (exit $code), last 15 lines:\n";
+        printTail($output, 15);
+    } else {
+        printTail($output, 2);
+    }
+    echo "\n";
+}
+
+// ---------- 门 2:PHPStan ----------
+echo "[RUN ] gate 2: phpstan\n";
+[$output, $code] = runCmd('cd ' . escapeshellarg(ROOT) . ' && ' . PHP_BINARY . ' vendor/bin/phpstan analyse --no-progress');
+if ($code !== 0) {
+    $failures[] = 'gate 2: phpstan failed';
+    echo "  FAILED (exit $code), last 15 lines:\n";
+    printTail($output, 15);
+} else {
+    printTail($output, 2);
+}
+echo "\n";
+
+// ---------- 门 3:文档完整性(链接 + 配对不变量) ----------
+echo "[RUN ] gate 3: docs integrity\n";
+$docProblems = checkDocs(ROOT);
+if ($docProblems === []) {
+    echo "  docs: all links resolve; language dirs paired\n";
+} else {
+    foreach ($docProblems as $p) {
+        echo "  BROKEN: $p\n";
+    }
+    $failures[] = 'gate 3: docs integrity failed (' . count($docProblems) . ' problems)';
+}
+echo "\n";
+
+// ---------- 汇总 ----------
+$elapsed = round((microtime(true) - $startTime) * 1000);
+$passed = 3 - count($failures) - $skipped;
+echo "\n=== summary: $passed/3 gates passed";
+if ($skipped > 0) {
+    echo ", $skipped skipped";
+}
+echo " ({$elapsed}ms) ===\n";
+if ($failures !== []) {
+    echo "RED — do NOT tag/push. Fix first:\n";
+    foreach ($failures as $f) {
+        echo "  x $f\n";
+    }
+    exit(1);
+}
+echo "GREEN — safe to proceed with release flow (CHANGELOG completeness: human review in release flow B).\n";
+exit(0);
+
+/**
+ * 门 3 实现:全站 markdown 链接校验 + 语言目录配对不变量。
+ *
+ * @return string[] 问题清单(空 = 通过)
+ */
+function checkDocs(string $root): array
+{
+    $problems = [];
+
+    $scan = static function (string $dir) use (&$scan): array {
+        $out = [];
+        foreach (scandir($dir) ?: [] as $f) {
+            if ($f === '.' || $f === '..' || $f === '.runtime' || $f === '.work') {
+                continue;
+            }
+            $p = "$dir/$f";
+            if (is_dir($p)) {
+                $out = array_merge($out, $scan($p));
+            } elseif (substr($p, -3) === '.md') {
+                $out[] = $p;
+            }
+        }
+        return $out;
+    };
+
+    $mdFiles = array_merge(
+        $scan("$root/docs"),
+        [$root . '/README.md', $root . '/README.zh-CN.md']
+    );
+
+    foreach ($mdFiles as $file) {
+        $base = dirname($file);
+        $content = (string) file_get_contents($file);
+        // 剥行内码再抽链接(模式示意不是真链接)
+        $content = preg_replace('/`[^`]*`/', '', $content);
+        preg_match_all('/\]\(([^)#]+)\)/', (string) $content, $m);
+        foreach ($m[1] as $link) {
+            if (preg_match('/^https?:/', $link)) {
+                continue;
+            }
+            // 目录链接剥尾斜杠,否则 realpath 失败误报断链
+            $target = $base . '/' . rtrim(str_replace('%20', ' ', $link), '/');
+            $real = realpath($target);
+            $rootReal = realpath($root);
+            if ($real === false || $rootReal === false || strpos($real, $rootReal) !== 0) {
+                $problems[] = "$file -> $link";
+            }
+        }
+    }
+
+    // 配对不变量:reference/ 与 reference/zh-CN/ 模块集一致
+    $en = [];
+    foreach (glob("$root/docs/reference/*.md") ?: [] as $f) {
+        $en[basename($f, '.md')] = true;
+    }
+    $zh = [];
+    foreach (glob("$root/docs/reference/zh-CN/*.md") ?: [] as $f) {
+        $zh[basename($f, '.zh-CN.md')] = true;
+    }
+    foreach (array_diff_key($en, $zh) as $missing => $_) {
+        $problems[] = "pairing: zh-CN mirror missing for $missing";
+    }
+    foreach (array_diff_key($zh, $en) as $missing => $_) {
+        $problems[] = "pairing: en page missing for $missing.zh-CN";
+    }
+
+    return $problems;
+}

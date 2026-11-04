@@ -2,6 +2,14 @@
 
 所有显著变更记录于此。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [2.12.0] - 2026-11-04
+
+### Added
+- `bin/check` 本地质量关卡脚本(release-workflow §0 的机械化执行):pre-flight 三道门——①全量测试 ②PHPStan ③文档完整性(全站链接 0 断链 + 语言目录配对不变量);任一门红 → 退出码非零(红了不发);"发布到 main"指令触发后、任何 git 动作之前强制跑全。CHANGELOG 完整性不设机器门(语义核对只能人做),保留在发布流程人工核对步骤
+
+### Fixed
+- extension-points 英中两页重复 `## Dependencies` 节去重,孤儿段落并入 Notes & Guarantees(节标题数恢复五节模板)
+
 ## [2.11.0] - 2026-10-30
 
 ### Added
