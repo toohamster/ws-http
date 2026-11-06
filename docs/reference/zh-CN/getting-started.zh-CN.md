@@ -99,8 +99,10 @@ foreach ($agent->run('Create hello.txt containing "hi" using the write_file tool
 | `RequestException` 码 6 | 域名解析不了 | 查 URL;走代理?`withProxy()` |
 | `RequestException` 码 28 | 超时(默认 30 秒) | `withTimeout()`——端点慢或网络慢 |
 | `$response->body === false` | 非 JSON / 解码失败 | 查 `$response->jsonError`;原文在 `rawBody` |
-| 场景 exit 2 | 解析错误(V1–V19) | 消息带 JSON Pointer——修那个字段;非法 JSONPath → V9 |
+| 场景 exit 2 | 解析错误(V1–V23) | 消息带 JSON Pointer——修那个字段;非法 JSONPath → V9 |
 | 场景 405 提取失败 | `onMissing=fail` 且路径无匹配 | 对照真实响应核路径;或 `onMissing: "skip"/"default"` |
+| 接口偶发失败(时好时坏) | 网络抖动 / 限频 | 步骤加 `"retry": { "max": 2, "interval": "2s" }`([scenario-testing.zh-CN.md](./scenario-testing.zh-CN.md)) |
+| 异步任务首轮轮询不就绪 | 服务端后台处理 | 步骤加 `"until": { "timeout": "60s", "interval": "3s", "assertions": [...] }` 轮询至就绪 |
 | agent 错误码 620 | 认证被拒(401/403) | `api_key` 错/缺;token 过期 |
 | agent 错误码 621 | 被限流(429) | 退避;加 `retry: ['max' => 2]`;或 /compact 缩上下文 |
 | agent 错误码 624 | 异常响应 | 2xx 但不可解析——查 `base_url` 是否指向 OpenAI 兼容端点 |

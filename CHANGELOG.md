@@ -2,6 +2,11 @@
 
 所有显著变更记录于此。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [2.13.1] - 2026-11-06
+
+### Changed
+- 文档补全(design/29 收口):scenario-testing 双语新增"步骤上下文"一节(retry/until/when 字段形态表、attempts 报告字段、组合上界 (max+1)×timeout);error-codes 双语 402 覆盖更新为 V1–V23;getting-started 双语排障表补"接口偶发失败→retry""异步任务→until"两行(纯文档,PATCH 进位)
+
 ## [2.13.0] - 2026-11-06
 
 ### Added

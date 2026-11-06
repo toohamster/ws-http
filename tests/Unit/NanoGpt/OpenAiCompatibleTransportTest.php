@@ -249,9 +249,11 @@ final class OpenAiCompatibleTransportTest extends TestCase
 
     public function testCapabilitiesFailureTolerated(): void
     {
-        $transport = new OrcaRouterTransport(['api_key' => 'sk-test', 'http' => new Request()]);
+        // 真实场景:目录接口临时故障(HTTP 500)→ capabilities() 容错返回空目录,不抛
+        $fake = new FakeChatRequest([[500, '{"error":{"message":"models down"}}']]);
+        $transport = new OrcaRouterTransport(['api_key' => 'sk-test', 'http' => $fake]);
 
-        $caps = $transport->capabilities(); // 网络失败 → 空目录,不抛
+        $caps = $transport->capabilities();
 
         self::assertSame([], $caps['models']);
     }

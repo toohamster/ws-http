@@ -28,7 +28,7 @@ public function parseFile(string $path): Scenario
 public function parseArray(array $data): Scenario       // test-friendly entry point
 ```
 
-Validation rules **V1–V19** run at load time (strict mode: unknown fields rejected; violations carry a JSON Pointer). Highlights: unique step ids (V4), method×body-mode matrix (V5), duration formats (V6), auth/proxy shape (V7), variable naming (V8), JSONPath pre-validation (V9), dataset references (V14–V16), redirect shape (V18), `outputs` producibility (V19).
+Validation rules **V1–V23** run at load time (strict mode: unknown fields rejected; violations carry a JSON Pointer). Highlights: unique step ids (V4), method×body-mode matrix (V5), duration formats (V6), auth/proxy shape (V7), variable naming (V8), JSONPath pre-validation (V9), dataset references (V14–V16), redirect shape (V18), `outputs` producibility (V19), step-context shapes retry/until/when (V20–V23).
 
 ### `Runner`
 
@@ -160,6 +160,25 @@ $factory->queue(new \Ws\Http\Response(
 $runner = new Runner($factory);
 $report = $runner->run((new ScenarioParser())->parseArray($scenarioData));
 ```
+
+### Step context: retry, until, when
+
+Three optional http-step fields control **how** a step executes, without changing its inner semantics (send → extract → assert):
+
+```jsonc
+{ "type": "http", "id": "submit", "url": "https://api.example.com/order", "method": "POST",
+  "retry": { "max": 2, "interval": "2s" } }        // flaky endpoint: resend on failure
+```
+
+| Field | Shape | Semantics |
+| --- | --- | --- |
+| `retry` | `{ max: 1–5, interval: "1s" }` (interval optional, ≤60s) | On a failed round (transport error / extraction fail / assertion fail), wait `interval` and resend. Any green round → `passed`. Resolve failures (undefined variable) do **not** retry — that's a script bug. failFast fires only after retries are exhausted. |
+| `until` | `{ timeout: ≤300s, interval: "2s", assertions: [...] }` (interval optional) | **Polling gate**: resend and run only the `until.assertions` until they pass or `timeout` expires. After passing, the *last* response flows through the normal `extract` → `assertions` chain. On timeout → step `failed`, regular assertions/extract skipped. Transport errors inside a round are retried within the window. Use for async jobs (`POST /job` then poll status). |
+| `when` | `{ var: "name" }` | If the variable is undefined or falsy (PHP truthiness) → step `skipped` (does **not** trigger failFast; later steps run). Use for conditional cleanup / environment differences. |
+
+Only `http` steps support these (V23). `attempts` (rounds actually executed) and `context` (`retry`/`until`) appear in reports as optional fields; the text renderer appends `(N attempts)` to the step line.
+
+Combining `retry` + `until`: one `until` timeout makes that round fail and feeds the next retry; the total wall-time upper bound is `(max+1) × timeout`.
 
 ## Configuration
 

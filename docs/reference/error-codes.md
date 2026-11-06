@@ -37,7 +37,7 @@
 | Code | Meaning | Raised by |
 |---|---|---|
 | 401 | Invalid scenario JSON / unreadable file | `ScenarioParser::parse/parseFile`; cookie store write failure |
-| 402 | Field validation failure (V1–V19; message carries a JSON Pointer) | `ScenarioParser` |
+| 402 | Field validation failure (V1–V23; message carries a JSON Pointer) | `ScenarioParser` |
 | 403 | Invalid step type (or filesystem write refusal for cookie store) | parser / `FileCookieStore::persist` |
 | 404 | Invalid data mode | parser |
 | 405 | Extraction failure (`onMissing=fail`) | `VarExtractor` |

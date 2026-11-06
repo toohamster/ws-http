@@ -37,7 +37,7 @@
 | 码 | 含义 | 抛出者 |
 |---|---|---|
 | 401 | 场景 JSON 非法 / 文件不可读 | `ScenarioParser::parse/parseFile`;Cookie 存储写失败 |
-| 402 | 字段校验失败(V1–V19;消息含 JSON Pointer) | `ScenarioParser` |
+| 402 | 字段校验失败(V1–V23;消息含 JSON Pointer) | `ScenarioParser` |
 | 403 | 步骤类型非法(或 Cookie 存储文件系统写被拒) | 解析器 / `FileCookieStore::persist` |
 | 404 | 数据模式非法 | 解析器 |
 | 405 | 提取失败(`onMissing=fail`) | `VarExtractor` |

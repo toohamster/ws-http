@@ -28,7 +28,7 @@ public function parseFile(string $path): Scenario
 public function parseArray(array $data): Scenario       // 测试友好入口
 ```
 
-校验规则 **V1–V19** 在加载期一次跑完(严格模式:未知字段拒绝;违例携带 JSON Pointer)。要点:步骤 id 唯一(V4)、方法×体模式矩阵(V5)、时长格式(V6)、auth/proxy 形态(V7)、变量命名(V8)、JSONPath 预校验(V9)、数据集引用(V14–V16)、重定向形态(V18)、`outputs` 可产出性(V19)。
+校验规则 **V1–V23** 在加载期一次跑完(严格模式:未知字段拒绝;违例携带 JSON Pointer)。要点:步骤 id 唯一(V4)、方法×体模式矩阵(V5)、时长格式(V6)、auth/proxy 形态(V7)、变量命名(V8)、JSONPath 预校验(V9)、数据集引用(V14–V16)、重定向形态(V18)、`outputs` 可产出性(V19)、步骤上下文 retry/until/when 形态(V20–V23)。
 
 ### `Runner`
 
@@ -160,6 +160,25 @@ $factory->queue(new \Ws\Http\Response(
 $runner = new Runner($factory);
 $report = $runner->run((new ScenarioParser())->parseArray($scenarioData));
 ```
+
+### 步骤上下文:retry、until、when
+
+三个可选的 http 步骤字段控制步骤**如何执行**,不改变其内部语义(发送 → 提取 → 断言):
+
+```jsonc
+{ "type": "http", "id": "submit", "url": "https://api.example.com/order", "method": "POST",
+  "retry": { "max": 2, "interval": "2s" } }        // 接口偶发抖动:失败自动重发
+```
+
+| 字段 | 形态 | 语义 |
+| --- | --- | --- |
+| `retry` | `{ max: 1–5, interval: "1s" }`(interval 可选,≤60s) | 某轮失败(传输异常 / 提取失败 / 断言失败)后等待 `interval` 重发;任一轮全绿即 passed。resolve 失败(未定义变量)**不重试**——那是脚本错误。重试耗尽才触发 failFast。 |
+| `until` | `{ timeout: ≤300s, interval: "2s", assertions: [...] }`(interval 可选) | **轮询门槛**:反复发送且只跑 `until.assertions`,直至通过或 `timeout` 到期。通过后,**末轮响应**进入常规 `extract` → `assertions` 链。超时 → 步骤 failed,常规断言/提取不执行。轮内传输异常在窗口内重试。适用异步任务(`POST /job` 后轮询状态)。 |
+| `when` | `{ var: "name" }` | 变量未定义或 falsy(PHP truthy 语义)→ 步骤 `skipped`(**不触发** failFast,后续步骤照常)。适用条件清理 / 环境差异。 |
+
+仅 `http` 步骤支持(V23)。报告以可选字段输出 `attempts`(实际执行轮数)与 `context`(`retry`/`until`);text 渲染器在步骤行追加 `(N attempts)`。
+
+`retry` + `until` 组合:单轮 until 超时即该轮失败进入下一次 retry;总时长上界 = `(max+1) × timeout`。
 
 ## Configuration
 

@@ -99,8 +99,10 @@ Full manual: [agent-core.md](agent-core.md) · [agent-transports.md](agent-trans
 | `RequestException` code 6 | Domain doesn't resolve | Check URL; behind a proxy? `withProxy()` |
 | `RequestException` code 28 | Timeout (default 30 s) | `withTimeout()` — slow endpoint or network |
 | `$response->body === false` | Not JSON / decode failed | Inspect `$response->jsonError`; `rawBody` has the raw text |
-| Scenario exits 2 | Parse error (V1–V19) | Message carries a JSON Pointer — fix that field; invalid JSONPath → V9 |
+| Scenario exits 2 | Parse error (V1–V23) | Message carries a JSON Pointer — fix that field; invalid JSONPath → V9 |
 | Scenario 405 extraction failed | `onMissing=fail` and path matched nothing | Verify path against the real response; or `onMissing: "skip"/"default"` |
+| Flaky endpoint fails intermittently | Network jitter / rate limiting | Add `"retry": { "max": 2, "interval": "2s" }` to the step ([scenario-testing.md](scenario-testing.md)) |
+| Async job never "ready" at first poll | Server processes in background | Add `"until": { "timeout": "60s", "interval": "3s", "assertions": [...] }` to poll until ready |
 | Agent error code 620 | Auth rejected (401/403) | Wrong/missing `api_key`; expired token |
 | Agent error code 621 | Rate limited (429) | Back off; add `retry: ['max' => 2]`; or /compact to shrink context |
 | Agent error code 624 | Unexpected response | 2xx but unparseable — check `base_url` points to an OpenAI-compatible endpoint |
