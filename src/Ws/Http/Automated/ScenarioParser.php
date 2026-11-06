@@ -9,7 +9,7 @@ use Ws\Http\Method;
 use Ws\Http\StrKit;
 
 /**
- * 场景脚本解析器(design/14 §5:校验规则 V1–V13;V19 见 design/27 §2)。
+ * 场景脚本解析器(design/14 §5:校验规则 V1–V13;V19 见 design/27 §2;V20–V23 见 design/29 §4)。
  *
  * 加载期一次性完成全部校验;失败抛 AutomatedException(code 401/402),消息含 JSON Pointer。
  * 已知取舍:V10(跨步骤变量引用)保守策略——加载期不校验,运行期按 design/15 §4.3 处理。
@@ -261,8 +261,17 @@ final class ScenarioParser
             $this->checkFields(
                 $raw,
                 $pointer,
-                ['type', 'id', 'name', 'url', 'method', 'timeout', 'headers', 'auth', 'proxy', 'body', 'extract', 'assertions', 'duration', 'var', 'from', 'options', 'prompt', 'redirect']
+                ['type', 'id', 'name', 'url', 'method', 'timeout', 'headers', 'auth', 'proxy', 'body', 'extract', 'assertions', 'duration', 'var', 'from', 'options', 'prompt', 'redirect', 'retry', 'until', 'when']
             );
+
+            // V23:retry/until/when 仅允许出现在 http 步骤(design/29 §4)
+            if ($type !== 'http') {
+                foreach (['retry', 'until', 'when'] as $ctxField) {
+                    if (array_key_exists($ctxField, $raw)) {
+                        throw $this->error($pointer . '/' . $ctxField, sprintf('"%s" steps do not support "%s" (http only)', $type, $ctxField));
+                    }
+                }
+            }
 
             $id = (string) ($raw['id'] ?? '');
             if ($id === '') {
@@ -360,7 +369,131 @@ final class ScenarioParser
             $assertions = $this->parseAssertions($raw['assertions'], $pointer . '/assertions');
         }
 
-        return new HttpStep($id, $name, (string) $raw['url'], $method, $headers, $auth, $proxy, $body, $extract, $assertions, $timeout, isset($raw['redirect']) ? $this->parseRedirect($raw['redirect'], $pointer . '/redirect') : null);
+        return new HttpStep(
+            $id,
+            $name,
+            (string) $raw['url'],
+            $method,
+            $headers,
+            $auth,
+            $proxy,
+            $body,
+            $extract,
+            $assertions,
+            $timeout,
+            isset($raw['redirect']) ? $this->parseRedirect($raw['redirect'], $pointer . '/redirect') : null,
+            // V20–V22(design/29):retry/until/when
+            isset($raw['retry']) ? $this->parseRetry($raw['retry'], $pointer . '/retry') : null,
+            isset($raw['until']) ? $this->parseUntil($raw['until'], $pointer . '/until') : null,
+            isset($raw['when']) ? $this->parseWhen($raw['when'], $pointer . '/when') : null
+        );
+    }
+
+    /**
+     * V20(design/29 §2.1):retry 结构(max ∈ [1,5] 整型;interval 时间格式 ≤60s)。
+     *
+     * @return array{max: int, interval: string}
+     */
+    private function parseRetry($raw, string $pointer): array
+    {
+        if (!\is_array($raw)) {
+            throw $this->error($pointer, 'must be an object');
+        }
+        $this->checkFields($raw, $pointer, ['max', 'interval']);
+
+        if (!isset($raw['max']) || !\is_int($raw['max']) || $raw['max'] < 1 || $raw['max'] > 5) {
+            throw $this->error($pointer . '/max', 'must be an integer in [1, 5]');
+        }
+
+        // interval:默认 1s;上限 60s(design/29 §2.1)
+        $interval = '1s';
+        if (isset($raw['interval'])) {
+            $interval = $this->parseTimeout($raw['interval'], $pointer . '/interval');
+            if ($this->durationSeconds($interval) > 60.0) {
+                throw $this->error($pointer . '/interval', 'must be <= 60s');
+            }
+        }
+
+        return ['max' => $raw['max'], 'interval' => $interval];
+    }
+
+    /**
+     * V21(design/29 §2.2):until 结构(timeout ≤300s;interval ≤60s;assertions 非空)。
+     *
+     * @return array{timeout: string, interval: string, assertions: array<int, array<string, mixed>>}
+     */
+    private function parseUntil($raw, string $pointer): array
+    {
+        if (!\is_array($raw)) {
+            throw $this->error($pointer, 'must be an object');
+        }
+        $this->checkFields($raw, $pointer, ['timeout', 'interval', 'assertions']);
+
+        if (!isset($raw['timeout'])) {
+            throw $this->error($pointer . '/timeout', 'missing required field "timeout"');
+        }
+        $timeout = $this->parseTimeout($raw['timeout'], $pointer . '/timeout');
+        if ($this->durationSeconds($timeout) > 300.0) {
+            throw $this->error($pointer . '/timeout', 'must be <= 300s');
+        }
+
+        // interval:默认 2s;上限 60s
+        $interval = '2s';
+        if (isset($raw['interval'])) {
+            $interval = $this->parseTimeout($raw['interval'], $pointer . '/interval');
+            if ($this->durationSeconds($interval) > 60.0) {
+                throw $this->error($pointer . '/interval', 'must be <= 60s');
+            }
+        }
+
+        if (!isset($raw['assertions']) || !\is_array($raw['assertions']) || $raw['assertions'] === []) {
+            throw $this->error($pointer . '/assertions', 'must be a non-empty array');
+        }
+        $assertions = $this->parseAssertions($raw['assertions'], $pointer . '/assertions');
+
+        return ['timeout' => $timeout, 'interval' => $interval, 'assertions' => $assertions];
+    }
+
+    /**
+     * V22(design/29 §2.3):when 结构(对象仅含 var;命名规则;不校验是否已声明——与 V10 同策略)。
+     *
+     * @return array{var: string}
+     */
+    private function parseWhen($raw, string $pointer): array
+    {
+        if (!\is_array($raw)) {
+            throw $this->error($pointer, 'must be an object');
+        }
+        $this->checkFields($raw, $pointer, ['var']);
+
+        $var = (string) ($raw['var'] ?? '');
+        if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $var)) {
+            throw $this->error($pointer . '/var', sprintf('"%s" does not match variable naming rule', $var));
+        }
+
+        return ['var' => $var];
+    }
+
+    /**
+     * 时间字符串 → 秒(已通过 parseTimeout 格式预检的串)。
+     */
+    private function durationSeconds(string $duration): float
+    {
+        if (preg_match('/^(\d+(?:\.\d+)?)(ms|s|m)?$/', $duration, $m) !== 1) {
+            return 0.0; // 不可达:parseTimeout 已预检格式
+        }
+
+        $value = (float) $m[1];
+        $unit = $m[2] ?? 's';
+
+        if ($unit === 'ms') {
+            return $value / 1000;
+        }
+        if ($unit === 'm') {
+            return $value * 60;
+        }
+
+        return $value;
     }
 
     /**

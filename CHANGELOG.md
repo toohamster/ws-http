@@ -2,6 +2,13 @@
 
 所有显著变更记录于此。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [2.13.0] - 2026-11-06
+
+### Added
+- 步骤上下文契约(design/29,补 design/14 点名缺口"步骤上下文无契约"):http 步骤新增三个可选字段——①`retry`(失败重发:`max` 1–5 + `interval`,resolve 失败不重试,耗尽才触发 failFast);②`until`(轮询等待:反复发送只跑 until.assertions 直至通过或 timeout,通过后用末轮响应走既有 extract→断言链;与 pause+poll 划界——poll 等值、until 等状态);③`when`(条件执行:变量 truthy 才执行,否则 skipped 且不触发 failFast);组合语义 retry+until(单轮 until 超时即该轮失败进下次 retry,总时长上界 (max+1)×timeout)
+- Report/StepResult 追加 `attempts`/`context` 可选字段(attempts=1 不输出,旧消费端兼容);TextRenderer 步骤行追加 `(N attempts)` 展示
+- 校验规则 V20–V23(retry/until/when 结构与 http-only 限制);Runner 新增 sleeper/clock 注入点(测试零真实等待,PollSource 同款范式)
+
 ## [2.12.0] - 2026-11-04
 
 ### Added

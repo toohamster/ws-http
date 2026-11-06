@@ -41,18 +41,32 @@ final class Runner
     /** @var PauseRegistry|null pause 取值策略注册表(design/22;null = 场景不含 pause 步骤时零开销) */
     private $pauseRegistry;
 
+    /** @var callable(float $seconds): void sleep 替身(retry interval/until 等待,测试注入;design/29 §3.2) */
+    private $sleeper;
+
+    /** @var callable(): float 时钟替身(until timeout 计时,测试注入) */
+    private $clock;
+
     public function __construct(
         RequestFactoryInterface $factory,
         ?ScenarioResolver $resolver = null,
         ?VarExtractor $extractor = null,
         ?AssertionRunner $assertionRunner = null,
-        ?PauseRegistry $pauseRegistry = null
+        ?PauseRegistry $pauseRegistry = null,
+        ?callable $sleeper = null,
+        ?callable $clock = null
     ) {
         $this->factory = $factory;
         $this->resolver = $resolver ?? new ScenarioResolver();
         $this->extractor = $extractor ?? new VarExtractor();
         $this->assertionRunner = $assertionRunner ?? new AssertionRunner();
         $this->pauseRegistry = $pauseRegistry;
+        $this->sleeper = $sleeper ?? static function (float $seconds): void {
+            \sleep((int) ceil($seconds));
+        };
+        $this->clock = $clock ?? static function (): float {
+            return \microtime(true);
+        };
     }
 
     public function run(Scenario $scenario): Report
@@ -123,21 +137,63 @@ final class Runner
 
         \assert($step instanceof HttpStep);
 
+        // when 前置判断(design/29 §2.3):条件不满足 → skipped,不发送、不触发 failFast
+        if ($step->when() !== null) {
+            $var = $step->when()['var'];
+            $value = $scope->get($var);
+            if (!$value->defined || !$this->isTruthy($value->value)) {
+                $stepResult = StepResult::skipped($step->id(), $step->name(), sprintf("when: var '%s' is falsy", $var));
+                $stepResult->durationMs = (microtime(true) - $startedAt) * 1000;
+
+                return $stepResult;
+            }
+        }
+
+        // retry 外层循环(design/29 §2.1/§3.2):resolve 失败不重试(脚本错误),执行轮失败才重发
+        $retry = $step->retry();
+        $maxAttempts = $retry !== null ? $retry['max'] + 1 : 1;
+        $intervalSeconds = $retry !== null ? $this->durationToSeconds($retry['interval']) : 0.0;
+
+        $attempts = 0;
+        $lastResult = null;
+
         try {
-            return $this->runHttpStep($step, $scope, $cookies, $scenario, $startedAt);
+            do {
+                $attempts++;
+                $lastResult = $this->runHttpStep($step, $scope, $cookies, $scenario, $startedAt);
+
+                if ($lastResult->status !== StepResult::STATUS_FAILED || $attempts >= $maxAttempts) {
+                    break;
+                }
+
+                ($this->sleeper)($intervalSeconds); // 轮次间隔后重发
+            } while (true);
         } catch (\InvalidArgumentException $e) {
-            // resolve 未定义变量 / 请求参数非法
+            // resolve 未定义变量 / 请求参数非法:配置错误重试无意义,首次失败即 failed(design/29 §2.1"不触发")
             $stepResult = new StepResult($step->id(), $step->name(), $step->type(), StepResult::STATUS_FAILED, $e->getMessage());
             $stepResult->durationMs = (microtime(true) - $startedAt) * 1000;
 
             return $stepResult;
         } catch (RequestException $e) {
-            // 传输层失败(连接/DNS/超时/SSL)
+            // runHttpStep 内部把传输异常转成 failed 结果;能到这里说明异常逃逸(factory->create 等)
             $stepResult = new StepResult($step->id(), $step->name(), $step->type(), StepResult::STATUS_FAILED, $e->getMessage());
             $stepResult->durationMs = (microtime(true) - $startedAt) * 1000;
 
             return $stepResult;
         }
+
+        // attempts/context 补记(design/29 §3.3):
+        // - retry-only:attempts = retry 循环计数;
+        // - 含 until:runHttpStep 内层已按轮询轮数写入(每轮 runHttpStep 调用各自累计,末轮语义),
+        //   不覆盖;context 取 until 优先。
+        if ($retry !== null || $step->until() !== null) {
+            if ($step->until() === null) {
+                $lastResult->attempts = $attempts;
+            }
+            $lastResult->context = $step->until() !== null ? 'until' : 'retry';
+        }
+
+        return $lastResult;
     }
 
     // ---------- http 步骤 ----------
@@ -195,12 +251,64 @@ final class Runner
         // 3. body mode → PreparedBody / 数组(design/14 §4.4)
         $payload = $this->buildPayload($bodyMode, $bodyRaw);
 
-        // 4. 发送
-        $request = $this->factory->create($options);
-        $response = $request->send($step->method(), $url, $payload, $headers);
+        // 4. 发送(until 存在时反复发送,design/29 §2.2)
+        $factory = $this->factory;
+        $send = static function () use ($step, $factory, $options, $url, $payload, $headers, $cookies): Response {
+            $request = $factory->create($options);
+            $response = $request->send($step->method(), $url, $payload, $headers);
+            $cookies->collectFrom($response, $url); // 每轮照常收集(design/29 §2.1 副作用语义)
 
-        // 5. CookieStore:响应后收集
-        $cookies->collectFrom($response, $url);
+            return $response;
+        };
+
+        $attempts = 1;
+
+        $until = $step->until();
+        if ($until !== null) {
+            $untilAssertions = AssertionRunner::fromArray($until['assertions']);
+            $intervalSeconds = $this->durationToSeconds($until['interval']);
+            $deadline = ($this->clock)() + $this->durationToSeconds($until['timeout']);
+            $untilLastMessage = '';
+            $untilTimeoutExceeded = false;
+
+            while (true) {
+                $response = $send();
+
+                $resultSet = $this->assertionRunner->run($response, $untilAssertions);
+                if ($resultSet->failed()->count() === 0) {
+                    break; // 门槛通过 → 用末轮响应进入正常流程(extract → 常规断言,§2.2"通过后")
+                }
+
+                $firstFailed = $resultSet->failed()->all()[0];
+                $untilLastMessage = $firstFailed->message ?? 'until assertion failed';
+
+                if (($this->clock)() + $intervalSeconds > $deadline) {
+                    $untilTimeoutExceeded = true;
+                    break;
+                }
+
+                ($this->sleeper)($intervalSeconds);
+                $attempts++;
+            }
+
+            // until 超时:步骤 failed,常规 assertions/extract 不执行(design/29 §2.2)
+            if ($untilTimeoutExceeded) {
+                $stepResult = new StepResult(
+                    $step->id(),
+                    $step->name(),
+                    $step->type(),
+                    StepResult::STATUS_FAILED,
+                    sprintf('until timeout after %s, %d attempts, last: %s', $until['timeout'], $attempts, $untilLastMessage)
+                );
+                $stepResult->attempts = $attempts;
+                $stepResult->context = 'until';
+                $stepResult->durationMs = (microtime(true) - $startedAt) * 1000;
+
+                return $stepResult;
+            }
+        } else {
+            $response = $send();
+        }
 
         // 6. 提取(onMissing fail/skip/default)
         $extraction = $this->extractor->extract($response, $step->extract(), $scope);
@@ -259,10 +367,45 @@ final class Runner
         );
         $stepResult->durationMs = (microtime(true) - $startedAt) * 1000;
 
+        if ($step->until() !== null || $step->retry() !== null) {
+            $stepResult->attempts = \max($attempts, 1);
+            $stepResult->context = $step->until() !== null ? 'until' : 'retry';
+        }
+
         return $stepResult;
     }
 
-    // ---------- pause 步骤(design/22 §4) ----------
+    /**
+     * PHP truthy 判定(design/29 §2.3 when 语义)。
+     *
+     * @param mixed $value
+     */
+    private function isTruthy($value): bool
+    {
+        return (bool) $value;
+    }
+
+    /**
+     * 时间字符串 → 秒(retry.interval / until.interval+timeout;格式加载期已预检)。
+     */
+    private function durationToSeconds(string $duration): float
+    {
+        if (preg_match('/^(\d+(?:\.\d+)?)(ms|s|m)?$/', $duration, $m) !== 1) {
+            return 0.0;
+        }
+
+        $value = (float) $m[1];
+        $unit = $m[2] ?? 's';
+
+        if ($unit === 'ms') {
+            return $value / 1000;
+        }
+        if ($unit === 'm') {
+            return $value * 60;
+        }
+
+        return $value;
+    }
 
     private function runPauseStep(PauseStep $step, VariableScope $scope, float $startedAt): StepResult
     {

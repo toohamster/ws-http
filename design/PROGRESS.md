@@ -31,6 +31,7 @@
 | 26 Skill 设计 | 任务级能力包(/skill) | 已实施 | 单提交(SkillDefinition/SkillLoader//skill 命令 + 示例 json-report);归位修订:定义与装载归组件层(v2.8.1) | 2026-10-22 | v2.8.0 + v2.8.1 |
 | 27 场景输出契约设计 | outputs 白名单(V19)+ ScenarioOutput 出口 | 已实施 | O1–O2(V19/出口 + ApiFetchTool 场景形态,两形态并存) | 2026-10-19 | v2.7.0 |
 | 28 厂商接入层设计 | ChatTransportInterface/重试/错误分类/双层厂商 | 已实施 | D1–D4 | 2026-10-16 | v2.6.0 |
+| 29 步骤上下文契约设计 | retry/until/when + V20–V23 | 已实施 | 单交付(解析+执行+报告+测试 21 个) | 2026-11-06 | v2.13.0 |
 
 ## 悬置工作
 
@@ -60,3 +61,5 @@
 - **2026-10-26** v2.9.1:文档/记忆归档(历史标签决议保留,悬置清空)
 - **2026-10-27** v2.10.0:CookieStore file 模式(design/16 §7 补缺)
 - **2026-10-30** v2.11.0:双语技术文档(17 篇手册 × 2 语言 + CONVENTIONS + README 拆分)
+- **2026-11-04** v2.12.0:bin/check 本地质量关卡(三道门)+ extension-points 去重
+- **2026-11-06** v2.13.0:design/29 步骤上下文契约(retry/until/when)

@@ -60,6 +60,12 @@ final class StepResult
     /** @var array<string, mixed>|null 步骤类型专属附加信息(pause:source/var;design/22 §4) */
     public $meta;
 
+    /** @var int 实际执行轮数(design/29 §3.3;无 retry/until 时 = 1) */
+    public $attempts = 1;
+
+    /** @var string|null 上下文标记(design/29 §3.3;"retry"|"until") */
+    public $context;
+
     /**
      * @param array{method: string, url: string}|null $request
      * @param array<string, mixed> $extractedVariables
@@ -106,7 +112,7 @@ final class StepResult
 
     public function toArray(): array
     {
-        return [
+        $array = [
             'id'                 => $this->stepId,
             'name'               => $this->stepName,
             'type'               => $this->stepType,
@@ -121,5 +127,13 @@ final class StepResult
             'extractedVariables' => $this->extractedVariables,
             'meta'               => $this->meta,
         ];
+
+        // design/29 §3.3:可选字段——仅 retry/until 步骤输出(attempts 默认 1 不输出,旧消费端兼容)
+        if ($this->attempts !== 1) {
+            $array['attempts'] = $this->attempts;
+            $array['context'] = $this->context;
+        }
+
+        return $array;
     }
 }

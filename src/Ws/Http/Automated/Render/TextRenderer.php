@@ -42,6 +42,10 @@ final class TextRenderer implements ReportRendererInterface
                 $step->statusCode !== null ? (string) $step->statusCode : ($step->status === StepResult::STATUS_SKIPPED ? 'skipped' : ''),
                 $step->durationMs !== null ? number_format((float) $step->durationMs, 0) : '-'
             );
+            // design/29 §6:retry/until 步骤追加 attempts 展示
+            if ($step->attempts !== 1) {
+                $line .= sprintf(' (%d attempts)', $step->attempts);
+            }
             $lines[] = $line;
 
             if ($step->status === StepResult::STATUS_FAILED) {

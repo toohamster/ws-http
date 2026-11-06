@@ -48,6 +48,15 @@ final class HttpStep implements Step
     /** @var array{follow: bool, max: int}|null 步骤级重定向覆盖(design/14 §4.5) */
     private $redirect;
 
+    /** @var array{max: int, interval: string}|null 失败重发策略(design/29 §2.1) */
+    private $retry;
+
+    /** @var array{timeout: string, interval: string, assertions: array<int, array<string, mixed>>}|null 轮询门槛(design/29 §2.2) */
+    private $until;
+
+    /** @var array{var: string}|null 条件执行(design/29 §2.3) */
+    private $when;
+
     /** @var array<string, true> 运行期提取变量中需标记 secret 的名字(引擎注入,design/15 §2.1.1) */
     private $extractSecrets = [];
 
@@ -56,6 +65,9 @@ final class HttpStep implements Step
      * @param array<int, array<string, mixed>> $extract
      * @param array<int, array<string, mixed>> $assertions
      * @param array{follow: bool, max: int}|null $redirect
+     * @param array{max: int, interval: string}|null $retry
+     * @param array{timeout: string, interval: string, assertions: array<int, array<string, mixed>>}|null $until
+     * @param array{var: string}|null $when
      */
     public function __construct(
         string $id,
@@ -69,7 +81,10 @@ final class HttpStep implements Step
         array $extract = [],
         array $assertions = [],
         ?string $timeout = null,
-        ?array $redirect = null
+        ?array $redirect = null,
+        ?array $retry = null,
+        ?array $until = null,
+        ?array $when = null
     ) {
         $this->id = $id;
         $this->name = $name;
@@ -83,6 +98,9 @@ final class HttpStep implements Step
         $this->assertions = $assertions;
         $this->timeout = $timeout;
         $this->redirect = $redirect;
+        $this->retry = $retry;
+        $this->until = $until;
+        $this->when = $when;
     }
 
     public function id(): string
@@ -155,6 +173,24 @@ final class HttpStep implements Step
     public function redirect(): ?array
     {
         return $this->redirect;
+    }
+
+    /** @return array{max: int, interval: string}|null */
+    public function retry(): ?array
+    {
+        return $this->retry;
+    }
+
+    /** @return array{timeout: string, interval: string, assertions: array<int, array<string, mixed>>}|null */
+    public function until(): ?array
+    {
+        return $this->until;
+    }
+
+    /** @return array{var: string}|null */
+    public function when(): ?array
+    {
+        return $this->when;
     }
 
     /**
