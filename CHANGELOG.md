@@ -2,6 +2,11 @@
 
 所有显著变更记录于此。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [2.13.2] - 2026-11-10
+
+### Fixed
+- `HttpbinTest` 补 `@group integration` 标注:phpunit.xml.dist 按 group 排除网络用例(design/20 约定"默认排除 Integration"),但该测试类从未打标——此前默认套件混入 10 个真实网络用例(靠结果缓存侥幸跳过,缓存刷新后即暴露 SSL 错误);补标注后默认套件恢复零网络口径(Integration 显式 `--testsuite Integration` 启用)
+
 ## [2.13.1] - 2026-11-06
 
 ### Changed

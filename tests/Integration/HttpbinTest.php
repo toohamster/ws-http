@@ -12,7 +12,9 @@ use Ws\Http\RequestException;
 /**
  * 真实网络集成测试(httpbin.org)。
  *
- * 默认排除(design/20):phpunit.xml.dist 的 testsuite Unit/Engine 不含本目录;
+ * @group integration
+ *
+ * 默认排除(design/20):phpunit.xml.dist exclude group=integration;
  * 显式启用:php74 vendor/bin/phpunit --testsuite Integration
  */
 final class HttpbinTest extends TestCase
