@@ -2,6 +2,11 @@
 
 所有显著变更记录于此。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [Unreleased]
+
+### Changed
+- `CLAUDE.md` 重写(纯英文,单语言):定位更新为 PHP 7.4 成品库(三层能力/当前版本线),删除已完结的"重构中"上下文与 B1–B11 历史缺陷清单;Commands 改为真实工具链(php74 前缀/phpunit 三套件/phpstan/bin/check 关卡);新增权威文档指引(design/README + PROGRESS 台账 + docs/reference 双语手册)与测试规则(分层/替身真实失败形态/失败批量归因)、发布纪律(semver/标签不可移动/一次交付一提交)
+
 ## [2.13.2] - 2026-11-10
 
 ### Fixed
